@@ -1074,12 +1074,6 @@ class Data:
         st.session_state['cirurgies'].clear()
 
 
-class Exclusions:
-    @staticmethod
-    def validate(data: dict[list, Any]) -> bool:
-        return True
-
-
 if __name__ == '__main__':
     st.selectbox("Selecione um arquivo JSON da pasta 'data/' para carregar os dados",
                  os.listdir('data'), index=None, key='data_json', on_change=Data.load_json)

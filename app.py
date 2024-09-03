@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from collections import defaultdict
 from typing import Callable, TypedDict, Union, Any, Type, Generic, TypeVar
 
 import jsbeautifier
@@ -881,7 +882,20 @@ class CirurgyView:
         self.col1, self.col2 = cntr.columns(2, gap="small")
 
         with self.col1:
+            self.list_cirurgies = st.container()
             self.add_cirurgy_button = st.container()
+
+    def view_list_cirurgies(self, cirurgies: dict[str, Union[str, int, list]]):
+        column_config = {
+            'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True),
+            'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True),
+            'duration': st.column_config.NumberColumn(label="Duração (min)", required=True),
+            'priority': st.column_config.NumberColumn(label="Prioridade", required=True),
+            'possible_teams': st.column_config.ListColumn(label="Equipes possíveis"),
+            'possible_rooms': st.column_config.ListColumn(label="Salas possíveis"),
+        }
+
+        self.list_cirurgies.dataframe(cirurgies, use_container_width=True, column_config=column_config)
 
     @st.dialog("Adicionar Cirurgia", width="large")
     def view_add_cirurgy(self, on_submit: Callable):
@@ -971,7 +985,20 @@ class CirurgyControl:
         self.cirurgy_view.add_cirurgy_button.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
                                                     kwargs={"on_submit": self.on_submit}, use_container_width=True,
                                                     key="add_cirurgy")
-        self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
+        #self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
+        self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
+
+    @staticmethod
+    def make_list_view_dict(cirurgies: list[CirurgyModel]) -> dict:
+        cirurgies_dict = defaultdict(list)
+        for cirurgy in cirurgies:
+            cirurgies_dict['cirurgy_name'].append(cirurgy.cirurgy_name)
+            cirurgies_dict['patient_name'].append(cirurgy.patient_name)
+            cirurgies_dict['duration'].append(cirurgy.duration)
+            cirurgies_dict['priority'].append(cirurgy.priority)
+            cirurgies_dict['possible_teams'].append(cirurgy.possible_teams)
+            cirurgies_dict['possible_rooms'].append(cirurgy.possible_rooms)
+        return cirurgies_dict
 
     @MyLogger.decorate_function(add_extra=["CirurgyControl"])
     def on_submit(self, **kwargs):

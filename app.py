@@ -1,26 +1,74 @@
 import copy
 import json
+import os
 import sys
+import time
 from typing import Callable, TypedDict, Union, Any, Type, Generic, TypeVar
 
 import jsbeautifier
 import pandas as pd
 import streamlit as st
+
+from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export
+from difflib import SequenceMatcher
+
+def similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+if __name__ == '__main__':
+    st.set_page_config(
+        page_title="Agenda Inteligente de Cirurgias",
+        page_icon="🏥",
+        layout="wide"
+    )
+
 from loguru import logger
 from streamlit.delta_generator import DeltaGenerator
 
-from mylogger import MyLogger, log_func
-from mylogger.logcontext import LogC
+from gulogger import MyLogger, log_func
+from gulogger.logcontext import LogC
 
-st.set_page_config(
-    page_title="Agenda Inteligente de Cirurgias",
-    page_icon="🏥",
-    layout="wide"
-)
-
-if '__defined_loguru_config__' not in st.session_state:
+if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__':
     logger.add("loguru.log", level="TRACE", serialize=True)
     st.session_state['__defined_loguru_config__'] = True
+
+
+if __name__ == '__main__':
+    with st.expander("Configurações", expanded=False):
+        dist, ord = st.tabs(["Distribuição", "Ordenação"])
+        with dist:
+            st.write("Distribuição das Cirurgias")
+
+            st.slider("1. Número de gerações", min_value=1, max_value=50, value=5, step=1, key="dist_num_generations")
+            st.slider("1. Solução por população", min_value=1, max_value=150, value=30, step=1, key="dist_sol_per_pop")
+            st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["dist_sol_per_pop"], value=5, step=1, key="dist_num_parents_mating")
+
+            with st.container(border=True):
+                st.write("Configurações avançadas")
+                st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"], key="dist_crossover_type")
+                st.selectbox("1. Tipo de mutação", ["adaptive", "random"], key="dist_mutation_type")
+                st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1, key="dist_mutation_percent_genes")
+                st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"], key="dist_parent_selection_type")
+                st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['dist_sol_per_pop'], value=5, step=1, key="dist_keep_parents")
+
+        with ord:
+            st.write("Ordenação das Cirurgias")
+
+            st.checkbox("Ordem Simples", value=False, key="simple_order")
+
+            st.slider("2. Número de gerações", min_value=1, max_value=500, value=10, step=1, disabled=st.session_state['simple_order'], key="ord_num_generations")
+            st.slider("2. Solução por população", min_value=1, max_value=500, value=30, step=1, disabled=st.session_state['simple_order'], key="ord_sol_per_pop")
+            st.slider("2. Número de pais para cruzamento", min_value=1, max_value=st.session_state['ord_sol_per_pop'], value=15, step=1, disabled=st.session_state['simple_order'], key="ord_num_parents_mating")
+
+            with st.container(border=True):
+                st.write("Configurações avançadas")
+                st.selectbox("2. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"], disabled=st.session_state['simple_order'], key="ord_crossover_type")
+                st.selectbox("2. Tipo de mutação", ["adaptive", "random"], disabled=st.session_state['simple_order'], key="ord_mutation_type")
+                st.slider("2. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1, disabled=st.session_state['simple_order'], key="ord_mutation_percent_genes")
+                st.selectbox("2. Tipo de seleção de pais", ["sss", "tournament", "rank"], disabled=st.session_state['simple_order'], key="ord_parent_selection_type")
+                st.slider("2. Número de pais mantidos", min_value=1, max_value=st.session_state['ord_sol_per_pop'], value=5, step=1, disabled=st.session_state['simple_order'], key="ord_keep_parents")
+
+    st.markdown('---')
 
 
 class ProfessionalView:
@@ -295,6 +343,14 @@ class TeamView:
         with col2.container(border=True):
             self.doctor_responsible = st.container()
             self.profissionals = st.container()
+            with st.container(border=True):
+                self.scheduling = st.container()
+
+    @log_func
+    @MyLogger.decorate_function(add_extra=["TeamsView"])
+    def view_scheduling(self, scheduling: dict[str, list], logc: LogC):
+        self.scheduling.write("Agendamento")
+        self.scheduling.dataframe(scheduling, use_container_width=True)
 
     @log_func
     @MyLogger.decorate_function(add_extra=["TeamsView"])
@@ -303,10 +359,11 @@ class TeamView:
         if not disable:
             with self.teams_selection:
                 st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change, key="_selected_team", disabled=disable)
+                return st.session_state['_selected_team']
         else:
             with self.teams_selection:
                 st.selectbox("Selecione uma equipe", teams, disabled=disable)
-        return st.session_state['_selected_team']
+                return ''
 
     @log_func
     @MyLogger.decorate_function(add_extra=["TeamsView"])
@@ -359,11 +416,12 @@ class TeamView:
         )
 
 
-class TeamModel:
+class TeamModel(Equipe):
     id_counter: list[int] = st.session_state['team_id_counter']
     teams: list["TeamModel"] = st.session_state['teams']
 
     def __init__(self, name, professionals: list[ProfessionalModel] = None, doctor_responsible=None, **kwargs):
+        super().__init__(nome=name)
         self.name = name
         self.professionals = []
         self.doctor_responsible = None
@@ -371,8 +429,23 @@ class TeamModel:
         self.id = TeamModel.id_counter[0]
         TeamModel.id_counter[0] += 1
 
-        self.add_professionals(professionals) if professionals else None
-        self.set_doctor_responsible(doctor_responsible) if doctor_responsible else None
+        if professionals:
+            try:
+                professionals = [int(professional) for professional in professionals]
+            except Exception:
+                pass
+
+        if professionals:
+            self.add_professionals(professionals)
+
+        if doctor_responsible:
+            try:
+                doctor_responsible = int(doctor_responsible)
+            except Exception:
+                pass
+
+        if doctor_responsible:
+            self.set_doctor_responsible(doctor_responsible)
         TeamModel.teams.append(self)
 
     def __iter__(self):
@@ -408,6 +481,7 @@ class TeamModel:
         for professional in professionals:
             if isinstance(professional, int):
                 professional = ProfessionalModel.professionals[professional]
+
             self.add_professional(professional)
 
     def remove_professional(self, professional: Union[ProfessionalModel, int]):
@@ -422,7 +496,7 @@ class TeamModel:
         if self in professional.vteams:
             professional.remove_team(self)
 
-    def set_doctor_responsible(self, professional: ProfessionalModel):
+    def set_doctor_responsible(self, professional: Union[ProfessionalModel, int]):
         if professional is None:
             return
         if isinstance(professional, int):
@@ -455,13 +529,18 @@ class TeamModel:
         raise ValueError(f"Team '{_id}' not found: {TeamModel.teams}")
 
     def __str__(self):
-        return f"{self.id}"
+        return f"{self.name}"
 
     def __repr__(self):
         return str(self)
 
     def get_dict(self) -> dict:
-        return self.__dict__
+        return {
+            "name": self.name,
+            "professionals": [professional.get_dict() for professional in self.vprofessionals],
+            "doctor_responsible": self.doctor_responsible.get_dict() if self.doctor_responsible else None,
+            "id": self.id
+        }
 
 
 class TeamControl:
@@ -487,6 +566,22 @@ class TeamControl:
             team=st.session_state['selected_team'],
             logc=logc
         )
+
+        self.make_scheduling(logc=logc)
+
+    @MyLogger.decorate_function(add_extra=["TeamsControl"])
+    def make_scheduling(self, logc: LogC):
+        team = st.session_state['selected_team']
+        if not team:
+            return
+        scheduling = {"horarios": [], "sala": [], "cirurgia": [], "duracao": [], "paciente": []}
+        for surgery in team.cirurgias:
+            scheduling["horarios"].append(surgery.tempo_inicio)
+            scheduling["sala"].append(surgery.sala)
+            scheduling["cirurgia"].append(surgery.nome)
+            scheduling["duracao"].append(surgery.duracao)
+            scheduling["paciente"].append(surgery.patient_name)
+        self.team_view.view_scheduling(scheduling, logc=logc)
 
     @staticmethod
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
@@ -546,20 +641,341 @@ class TeamControl:
         self.teams.to_csv("teams.csv", index=False)
 
 
+if 'room_id_counter' not in st.session_state:
+    st.session_state['room_id_counter'] = [0]
+
+if 'rooms' not in st.session_state:
+    st.session_state['rooms'] = []
+
+if 'selected_room' not in st.session_state:
+    st.session_state['selected_room'] = None
+
+if 'default_selected_room_index' not in st.session_state:
+    st.session_state['default_selected_room_index'] = 0
+
+
+class RoomView:
+    def __init__(self, cntr=st):
+        cntr.write("Salas 🏥")
+
+        col1, col2 = cntr.columns(2, gap="small")
+
+        with col1.container(border=True):
+            self.rooms_selection = st.container()
+            st.divider()
+            st.write("Adicionar uma nova sala")
+
+            col1_1, col1_2 = st.columns([2, 1])
+
+            with col1_1:
+                self.new_room_name = st.container()
+            with col1_2:
+                self.add_room_button = st.container()
+
+            st.write("Adicionar várias novas salas")
+            col2_1, col2_2 = st.columns([2, 1])
+            with col2_1:
+                self.new_rooms_count = st.container()
+            with col2_2:
+                self.add_all_romms_buttons = st.container()
+
+            self.creation_warns = st.empty()
+
+        with col2.container(border=True):
+            self.room_list = st.container()
+
+            with st.container(border=True):
+                self.scheduling = st.container()
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_scheduling(self, scheduling: dict[str, list], logc: LogC):
+        self.scheduling.write("Agendamento")
+        self.scheduling.dataframe(scheduling, use_container_width=True)
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_selection(self, rooms: list[str], on_change: Callable, logc: LogC, default=0) -> str:
+        disable = True if not rooms else False
+        if not disable:
+            with self.rooms_selection:
+                st.selectbox("Selecione uma sala", rooms, index=default, on_change=on_change, key="_selected_room", disabled=disable, kwargs={"logc": logc})
+                return st.session_state['_selected_room']
+        else:
+            with self.rooms_selection:
+                st.selectbox("Selecione uma sala", rooms, disabled=disable)
+                return ''
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_new_room_name(self, logc: LogC) -> str:
+        return self.new_room_name.text_input("Nome da nova sala", label_visibility="collapsed", key="_new_room_name")
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_new_rooms_count(self, logc: LogC) -> int:
+        return self.new_rooms_count.number_input("Quantidade de salas", key="_new_rooms_count", min_value=1, value=1,
+                                                 label_visibility="collapsed")
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_add_room_button(self, room_view: "RoomView", on_click: Callable, logc: LogC) -> bool:
+        return self.add_room_button.button("Adicionar Sala", on_click=on_click, use_container_width=True,
+                                           kwargs={"room_view": room_view, "logc": logc})
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_add_all_rooms_button(self, room_view: "RoomView", on_click: Callable, logc: LogC) -> bool:
+        return self.add_all_romms_buttons.button("Adicionar todas as salas", on_click=on_click, use_container_width=True,
+                                           kwargs={"room_view": room_view, "logc": logc})
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_add_error_duplicate(self, logc: LogC):
+        self.creation_warns.error("Nome de sala já existente.")
+
+    @MyLogger.decorate_function(add_extra=["RoomsView"])
+    def view_room_list(self, rooms: list[str], on_change: Callable, logc: LogC):
+        self.room_list.multiselect(
+            "Selecione as salas",
+            rooms,
+            key="_multiselected_rooms",
+            on_change=on_change,
+            kwargs={"logc": logc},
+        )
+
+
+class RoomModel(Sala):
+    id_counter: list[int] = st.session_state['room_id_counter']
+    rooms: list["RoomModel"] = st.session_state['rooms']
+
+    def __init__(self, name, **kwargs):
+        super().__init__(name)
+        self.name = name
+        self.id = RoomModel.id_counter[0]
+        RoomModel.id_counter[0] += 1
+        RoomModel.rooms.append(self)
+
+    @staticmethod
+    def get_names() -> list[str]:
+        return [room.name for room in RoomModel.rooms]
+
+    @staticmethod
+    def get_by_name(name: str) -> "RoomModel":
+        for room in RoomModel.rooms:
+            if room.name == name:
+                return room
+        raise ValueError(f"Room {name} not found: {[r.name for r in RoomModel.rooms]}")
+
+    @staticmethod
+    def get_by_id(_id: int) -> "RoomModel":
+        for room in RoomModel.rooms:
+            if room.id == int(_id):
+                return room
+        raise ValueError(f"Room '{_id}' not found: {RoomModel.rooms}")
+
+    def __str__(self):
+        return f"{self.id}"
+
+    def __repr__(self):
+        return str(self)
+
+    def get_dict(self) -> dict:
+        return self.__dict__
+
+
+class RoomControl:
+    def __init__(self, logc: LogC = None):
+        self.room_view = RoomView(st.container(border=True))
+
+        st.session_state['selected_room']: RoomModel = self.select_room(logc=logc)
+        logger.debug(st.session_state['selected_room'])
+
+        selected_room: RoomModel = st.session_state['selected_room']
+
+        self.room_view.view_new_rooms_count(logc=logc)
+        self.room_view.view_add_all_rooms_button(room_view=self.room_view, on_click=self.on_click_add_all_rooms,
+                                                 logc=logc)
+        # self.room_view.view_room_list(Data.get_rooms_names(), self.on_change_rooms, logc=logc)
+
+        self.make_scheduling(logc=logc)
+
+    @MyLogger.decorate_function(add_extra=["RoomsControl"])
+    def make_scheduling(self, logc: LogC):
+        room = st.session_state['selected_room']
+        if not room:
+            return
+        scheduling = {"horarios": [], "equipe": [], "cirurgia": [], "duracao": [], "paciente": []}
+        for surgery in room.cirurgias:
+            scheduling["horarios"].append(surgery.tempo_inicio)
+            scheduling["equipe"].append(surgery.equipe.nome)
+            scheduling["cirurgia"].append(surgery.nome)
+            scheduling["duracao"].append(surgery.duracao)
+            scheduling["paciente"].append(surgery.patient_name)
+        self.room_view.view_scheduling(scheduling, logc=logc)
+
+    @staticmethod
+    @MyLogger.decorate_function(add_extra=["RoomsControl"])
+    def on_click_add_all_rooms(room_view: RoomView, logc: LogC):
+        for i in range(st.session_state['_new_rooms_count']):
+            selected_name: str = f'Sala{len(Data.get_rooms_names())}'
+            if selected_name in Data.get_rooms_names():
+                selected_name = f'{selected_name}_{i}'
+            RoomModel(name=selected_name)
+
+    @staticmethod
+    @MyLogger.decorate_function(add_extra=["RoomsControl"])
+    def on_change_rooms(logc: LogC):
+        rooms_str: str = st.session_state['_selected_room']
+        st.session_state['selected_room'] = RoomModel.get_by_name(rooms_str)
+
+    @staticmethod
+    @MyLogger.decorate_function(add_extra=["RoomsControl"])
+    def on_click_add_room(room_view: RoomView, logc: LogC):
+        selected_name: str = st.session_state['_new_room_name']
+        assert selected_name is not None and isinstance(selected_name, str)
+
+        if selected_name in RoomModel.get_names():
+            room_view.view_add_error_duplicate(logc=logc)
+        else:
+            st.session_state['default_selected_room_index'] = len(
+                list(Data.get_dict()['rooms'].keys())
+            )
+            RoomModel(name=selected_name)
+
+    @MyLogger.decorate_function(add_extra=["RoomsControl"])
+    def select_room(self, logc: LogC = None) -> Union[RoomModel, None]:
+        self.room_view.view_new_room_name(logc=logc)
+        self.room_view.view_add_room_button(room_view=self.room_view, on_click=self.on_click_add_room, logc=logc)
+
+        selected_name = self.room_view.view_selection(RoomModel.get_names(),
+                                                      self.on_change_rooms,
+                                                      default=st.session_state['default_selected_room_index'],
+                                                      logc=logc)
+        logger.debug(selected_name)
+        if selected_name:
+            return RoomModel.get_by_name(selected_name)
+        else:
+            logger.opt(depth=0).warning(f'No room named "{selected_name}"', **logc)
+            return None
+
+
+class CirurgyView:
+    def __init__(self, cntr=st):
+        cntr.write("Cirurgias 💉")
+
+        self.col1, self.col2 = cntr.columns(2, gap="small")
+
+    @MyLogger.decorate_function(add_extra=["CirurgyView"])
+    def view_add_cirurgy(self, on_submit: Callable, logc: LogC):
+        with self.col1.container():
+            with st.form("Adicionar Cirurgia", clear_on_submit=True):
+                cirurgy_name = st.data_editor({'cirurgy_name': ['']}, use_container_width=True, column_config={'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True)})['cirurgy_name'][0]
+                patient_name = st.data_editor({'patient_name': ['']}, use_container_width=True, column_config={'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True)})['patient_name'][0]
+                duration = st.data_editor({'duration': [0]}, use_container_width=True, column_config={'duration': st.column_config.NumberColumn(label="Duração (min)", required=True)})['duration'][0]
+                priority = st.data_editor({'priority': [0]}, use_container_width=True, column_config={'priority': st.column_config.NumberColumn(label="Prioridade", required=True)})['priority'][0]
+
+                possible_teams = [x.split(' - ')[-1] for x in st.multiselect("Equipes possíveis", Data.get_teams_names_with_id())]
+                possible_rooms = st.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
+
+                submit = st.form_submit_button("Adicionar Cirurgia", use_container_width=True)
+
+                if submit and cirurgy_name and patient_name and duration and priority:
+                    on_submit(
+                        cirurgy_name=cirurgy_name, patient_name=patient_name, duration=duration,
+                        priority=priority, possible_teams=possible_teams, possible_rooms=possible_rooms,
+                        logc=logc
+                    )
+
+    @MyLogger.decorate_function(add_extra=["CirurgyView"])
+    def view_cirurgy_list(self, cirurgies: list, logc: LogC):
+        self.col2.write(f'{len(cirurgies)} cirurgias')
+        self.col2.data_editor([cirurgy.get_dict() for cirurgy in cirurgies], use_container_width=True)
+
+
+if 'selected_cirurgy' not in st.session_state:
+    st.session_state['selected_cirurgy'] = None
+
+
+if 'cirurgies' not in st.session_state:
+    st.session_state['cirurgies'] = []
+
+if 'cirurgy_id_counter' not in st.session_state:
+    st.session_state['cirurgy_id_counter'] = [0]
+
+
+class CirurgyModel(Cirurgia):
+    id_counter: list[int] = st.session_state['cirurgy_id_counter']
+    rooms: list["CirurgyModel"] = st.session_state['cirurgies']
+
+    def __init__(self, cirurgy_name: str, patient_name: str, duration: int, priority: int,
+                 possible_teams: list[str], possible_rooms: list[RoomModel], **kwargs):
+        super().__init__(cirurgy_name, duration, priority, possible_teams)
+        self._possible_teams = []
+
+        self.cirurgy_name = cirurgy_name
+        self.patient_name = patient_name
+        self.duration = duration
+        self.priority = priority
+        self.possible_teams = possible_teams
+        self.possible_rooms = possible_rooms
+
+        self.id = CirurgyModel.id_counter[0]
+        CirurgyModel.id_counter[0] += 1
+        CirurgyModel.rooms.append(self)
+
+    @property
+    def possible_teams(self) -> list[TeamModel]:
+        return self._possible_teams
+
+    @possible_teams.setter
+    def possible_teams(self, teams):
+        for team in teams:
+            Data.get_team_by_id(int(team)).possible_cirurgies.append(self)
+        self._possible_teams = teams
+
+    def get_dict(self) -> dict:
+        return self.__dict__
+
+    def __repr__(self):
+        try:
+            return f'Cirurgia({self.cirurgy_name})' #f'Cirurgia({self.cirurgy_name}, {self.equipe.nome}, {self.duration})'
+        except (ValueError, TypeError):
+            return f'Cirurgia({self.cirurgy_name}, {self.duration})'
+
+
+class CirurgyControl:
+    def __init__(self, logc: LogC = None):
+        self.cirurgy_view = CirurgyView(st.container(border=True))
+        self.cirurgy_view.view_add_cirurgy(on_submit=self.on_submit, logc=logc)
+
+        self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
+
+    @MyLogger.decorate_function(add_extra=["CirurgyControl"])
+    def on_submit(self, **kwargs):
+        CirurgyModel(**kwargs)
+
+
 class Data:
     @staticmethod
-    def load_json(file='data.json'):
-        datadict = json.load(open(file))
+    def load_json(filepath="data/data_teste_2.json"):
+        if 'data_json' in st.session_state:
+            filepath = f'data/{st.session_state["data_json"]}'
+        datadict = jsbeautifier.beautify_file(filepath)
+        null = None
+        datadict = eval(datadict)
+
+        Data.clear_data()
+
         for professional in datadict['professionals'].values():
             ProfessionalModel(**professional)
         for team in datadict['teams'].values():
             TeamModel(**team)
+        for room in datadict['rooms'].values():
+            RoomModel(**room)
+        for cirurgy in datadict['cirurgies'].values():
+            CirurgyModel(**cirurgy)
 
     @staticmethod
     def get_dict() -> dict:
         return {
             "professionals": {i: professional.get_dict() for i, professional in enumerate(ProfessionalModel.professionals)},
-            "teams": {i: team.get_dict() for i, team in enumerate(TeamModel.teams)}
+            "teams": {i: team.get_dict() for i, team in enumerate(TeamModel.teams)},
+            "rooms": {i: room.get_dict() for i, room in enumerate(RoomModel.rooms)},
+            "cirurgies": {i: cirurgy.get_dict() for i, cirurgy in enumerate(CirurgyModel.rooms)}
         }
 
     @staticmethod
@@ -575,20 +991,139 @@ class Data:
 
     @staticmethod
     def get_team_by_name(name: str) -> TeamModel:
+        assert isinstance(name, str), f"{type(name)=}"
         for team in TeamModel.teams:
-            if team.name == name:
+            if str(team.name) == name:
                 return team
-        raise ValueError(f"Team {name} not found")
+        raise ValueError(f'Team "{name}" not found. {TeamModel.teams=}')
+
+    @staticmethod
+    def get_professionals_names() -> list[str]:
+        return [professional.name for professional in ProfessionalModel.professionals]
+
+    @staticmethod
+    def get_professional_by_name(name: str) -> ProfessionalModel:
+        for professional in ProfessionalModel.professionals:
+            if professional.name == name:
+                return professional
+        raise ValueError(f"Professional {name} not found")
+
+    @staticmethod
+    def get_rooms_names() -> list[str]:
+        return [room.name for room in RoomModel.rooms]
+
+    @staticmethod
+    def get_room_by_name(name: str) -> RoomModel:
+        for room in RoomModel.rooms:
+            if room.name == name:
+                return room
+        raise ValueError(f"Room {name} not found")
+
+    @staticmethod
+    def get_room_by_id(_id: int) -> RoomModel:
+        for room in RoomModel.rooms:
+            if room.id == _id:
+                return room
+        raise ValueError(f"Room {_id} not found")
+
+    @staticmethod
+    def get_team_by_id(_id: int) -> TeamModel:
+        assert isinstance(_id, int) or isinstance(_id, str), f"{_id=}"
+        for team in TeamModel.teams:
+            if team.id == int(_id):
+                return team
+        raise ValueError(f"Team {_id} not found")
+
+    @staticmethod
+    def get_professional_by_id(_id: int) -> ProfessionalModel:
+        for professional in ProfessionalModel.professionals:
+            if professional.id == _id:
+                return professional
+        raise ValueError(f"Professional {_id} not found")
+
+    @staticmethod
+    def get_professionals_names_with_id() -> list[str]:
+        return [f"{professional.name} - {professional.id}" for professional in ProfessionalModel.professionals]
+
+    @staticmethod
+    def get_teams_names_with_id() -> list[str]:
+        return [f"{team.name} - {team.id}" for team in TeamModel.teams]
+
+    @staticmethod
+    def get_rooms_names_with_id() -> list[str]:
+        return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
+
+    @staticmethod
+    def get_cirurgies() -> list[CirurgyModel]:
+        print(CirurgyModel.rooms)
+        return CirurgyModel.rooms
+
+    @staticmethod
+    def get_rooms() -> list[RoomModel]:
+        return RoomModel.rooms
+
+    @staticmethod
+    def get_teams() -> list[TeamModel]:
+        return TeamModel.teams
+
+    @staticmethod
+    def clear_data():
+        st.session_state['professionals'].clear()
+        st.session_state['teams'].clear()
+        st.session_state['rooms'].clear()
+        st.session_state['cirurgies'].clear()
 
 
-if st.button("Load JSON"):
-    Data.load_json()
+class Exclusions:
+    @staticmethod
+    def validate(data: dict[list, Any]) -> bool:
+        return True
 
 
-with MyLogger(add_tags=['program']) as logc:
-    tab_profs, tab_teams = st.tabs(["Profissionais 👨‍⚕️", "Equipes 👥"])
-    with tab_profs:
-        professional_control = ProfessionalControl(logc=logc)
-    with tab_teams:
-        teams_control = TeamControl(logc=logc)
-    st.json(Data.get_dict())
+if __name__ == '__main__':
+    st.selectbox("Selecione um arquivo JSON da pasta 'data/' para carregar os dados",
+                 os.listdir('data'), index=None, key='data_json', on_change=Data.load_json)
+
+    with MyLogger(add_tags=['program']) as logc:
+        tab_cirgs, tab_profs, tab_teams, tab_control = st.tabs(["💉 Cirurgias", "👨‍⚕️ Profissionais", "👥 Equipes", "🏥 Salas"])
+        with tab_profs:
+            professional_control = ProfessionalControl(logc=logc)
+        with tab_teams:
+            teams_control = TeamControl(logc=logc)
+        with tab_control:
+            rooms_control = RoomControl(logc=logc)
+        with tab_cirgs:
+            cirurgy_control = CirurgyControl(logc=logc)
+
+        if 'counter_gen_container' not in st.session_state:
+            st.session_state['counter_gen_container'] = st.empty()
+            st.write("Counter_gen_container criado")
+
+        if 'counter_gen' not in st.session_state:
+            st.session_state['counter_gen'] = 0
+
+        if 'agendado' not in st.session_state:
+            st.session_state['agendado'] = False
+
+        if st.button("Fazer agendamento!", use_container_width=True):
+            st.session_state['agendado'] = True
+            inicio = time.time()
+            logger.critical(f"{Data.get_rooms()}, {Data.get_cirurgies()}")
+            with st.spinner("Organizando salas..."):
+                mediador = Mediador()
+                mediador.equipes = Data.get_teams()
+                mediador.salas = Data.get_rooms()
+                otimizador = Otimizador(mediador, Data.get_cirurgies())
+                solucao, punicao = otimizador.otimizar_punicao()
+
+            st.write(f"Tempo de execução: {time.time() - inicio:.2f}s")
+            logger.critical(f"Tempo de execução: {time.time() - inicio:.2f}s")
+            st.write("Organização das salas:")
+
+            st.write(f"{solucao=} {punicao=}")
+            logger.success(f"{solucao=}")
+            algoritmo = Algoritmo(mediador, Data.get_cirurgies())
+            algoritmo.executar(solucao)
+            st.dataframe(algoritmo.dados_tabela)
+
+

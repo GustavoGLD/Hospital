@@ -1,0 +1,630 @@
+{
+  "professionals": {
+    "0": {
+      "name": "Jonas Alberto",
+      "id": 0,
+      "teams": ["0"],
+      "responsible_teams": ["0"]
+    },
+    "1": {
+      "name": "Carlos Henrique",
+      "id": 1,
+      "teams": ["0"],
+      "responsible_teams": []
+    },
+    "2": {
+      "name": "Debora Nascimento",
+      "id": 2,
+      "teams": ["0"],
+      "responsible_teams": []
+    },
+    "3": {
+      "name": "Maria Silva",
+      "id": 3,
+      "teams": ["1"],
+      "responsible_teams": ["1"]
+    },
+    "4": {
+      "name": "João Paulo",
+      "id": 4,
+      "teams": ["1"],
+      "responsible_teams": []
+    },
+    "5": {
+      "name": "Pedro Henrique",
+      "id": 5,
+      "teams": ["1"],
+      "responsible_teams": []
+    },
+    "6": {
+      "name": "José Carlos",
+      "id": 6,
+      "teams": ["2"],
+      "responsible_teams": ["2"]
+    },
+    "7": {
+      "name": "Ana Beatriz",
+      "id": 7,
+      "teams": ["2"],
+      "responsible_teams": []
+    },
+    "8": {
+      "name": "Paulo Roberto",
+      "id": 8,
+      "teams": ["2"],
+      "responsible_teams": []
+    },
+    "9": {
+      "name": "Fernando Costa",
+      "id": 9,
+      "teams": ["3"],
+      "responsible_teams": ["3"]
+    },
+    "10": {
+      "name": "Juliana Alves",
+      "id": 10,
+      "teams": ["3"],
+      "responsible_teams": []
+    },
+    "11": {
+      "name": "Roberta Lima",
+      "id": 11,
+      "teams": ["3"],
+      "responsible_teams": []
+    },
+    "12": {
+      "name": "Lucas Silva",
+      "id": 12,
+      "teams": ["4"],
+      "responsible_teams": ["4"]
+    },
+    "13": {
+      "name": "Patrícia Oliveira",
+      "id": 13,
+      "teams": ["4"],
+      "responsible_teams": []
+    },
+    "14": {
+      "name": "Carlos Eduardo",
+      "id": 14,
+      "teams": ["4"],
+      "responsible_teams": []
+    },
+    "15": {
+      "name": "Renata Santos",
+      "id": 15,
+      "teams": ["5"],
+      "responsible_teams": ["5"]
+    },
+    "16": {
+      "name": "Marcos Souza",
+      "id": 16,
+      "teams": ["5"],
+      "responsible_teams": []
+    },
+    "17": {
+      "name": "Carla Mendes",
+      "id": 17,
+      "teams": ["5"],
+      "responsible_teams": []
+    },
+    "18": {
+      "name": "Gustavo Lima",
+      "id": 18,
+      "teams": ["6"],
+      "responsible_teams": ["6"]
+    },
+    "19": {
+      "name": "Mariana Nunes",
+      "id": 19,
+      "teams": ["6"],
+      "responsible_teams": []
+    },
+    "20": {
+      "name": "Roberto Costa",
+      "id": 20,
+      "teams": ["6"],
+      "responsible_teams": []
+    },
+    "21": {
+      "name": "Fernanda Souza",
+      "id": 21,
+      "teams": ["7"],
+      "responsible_teams": ["7"]
+    },
+    "22": {
+      "name": "Thiago Santos",
+      "id": 22,
+      "teams": ["7"],
+      "responsible_teams": []
+    },
+    "23": {
+      "name": "Amanda Ferreira",
+      "id": 23,
+      "teams": ["7"],
+      "responsible_teams": []
+    },
+    "24": {
+      "name": "Vinicius Lima",
+      "id": 24,
+      "teams": ["8"],
+      "responsible_teams": ["8"]
+    },
+    "25": {
+      "name": "Tatiana Silva",
+      "id": 25,
+      "teams": ["8"],
+      "responsible_teams": []
+    },
+    "26": {
+      "name": "Ricardo Mendes",
+      "id": 26,
+      "teams": ["8"],
+      "responsible_teams": []
+    },
+    "27": {
+      "name": "José Almeida",
+      "id": 27,
+      "teams": ["9"],
+      "responsible_teams": ["9"]
+    },
+    "28": {
+      "name": "Carla Costa",
+      "id": 28,
+      "teams": ["9"],
+      "responsible_teams": []
+    },
+    "29": {
+      "name": "Guilherme Oliveira",
+      "id": 29,
+      "teams": ["9"],
+      "responsible_teams": []
+    },
+    "30": {
+      "name": "Fernanda Nascimento",
+      "id": 30,
+      "teams": ["10"],
+      "responsible_teams": ["10"]
+    },
+    "31": {
+      "name": "Sergio Ferreira",
+      "id": 31,
+      "teams": ["10"],
+      "responsible_teams": []
+    },
+    "32": {
+      "name": "Tatiana Costa",
+      "id": 32,
+      "teams": ["10"],
+      "responsible_teams": []
+    },
+    "33": {
+      "name": "Carlos Moreira",
+      "id": 33,
+      "teams": ["11"],
+      "responsible_teams": ["11"]
+    },
+    "34": {
+      "name": "Mariana Silva",
+      "id": 34,
+      "teams": ["11"],
+      "responsible_teams": []
+    },
+    "35": {
+      "name": "Roberta Nunes",
+      "id": 35,
+      "teams": ["11"],
+      "responsible_teams": []
+    },
+    "36": {
+      "name": "Paulo Ricardo",
+      "id": 36,
+      "teams": ["12"],
+      "responsible_teams": ["12"]
+    },
+    "37": {
+      "name": "Renata Gomes",
+      "id": 37,
+      "teams": ["12"],
+      "responsible_teams": []
+    },
+    "38": {
+      "name": "João Carlos",
+      "id": 38,
+      "teams": ["12"],
+      "responsible_teams": []
+    },
+    "39": {
+      "name": "André Lima",
+      "id": 39,
+      "teams": ["13"],
+      "responsible_teams": ["13"]
+    },
+    "40": {
+      "name": "Bruna Souza",
+      "id": 40,
+      "teams": ["13"],
+      "responsible_teams": []
+    },
+    "41": {
+      "name": "Carlos Rodrigues",
+      "id": 41,
+      "teams": ["13"],
+      "responsible_teams": []
+    },
+    "42": {
+      "name": "Juliana Oliveira",
+      "id": 42,
+      "teams": ["14"],
+      "responsible_teams": ["14"]
+    },
+    "43": {
+      "name": "Rafael Mendes",
+      "id": 43,
+      "teams": ["14"],
+      "responsible_teams": []
+    },
+    "44": {
+      "name": "Tatiane Costa",
+      "id": 44,
+      "teams": ["14"],
+      "responsible_teams": []
+    }
+  },
+  "teams": {
+    "0": {
+      "name": "Cirurgia Geral - Equipe A",
+      "professionals": [
+        "0",
+        "1",
+        "2"
+      ],
+      "doctor_responsible": "0",
+      "id": 0
+    },
+    "1": {
+      "name": "Cirurgia Geral - Equipe B",
+      "professionals": [
+        "3",
+        "4",
+        "5"
+      ],
+      "doctor_responsible": "3",
+      "id": 1
+    },
+    "2": {
+      "name": "Cirurgia Geral - Equipe C",
+      "professionals": [
+        "6",
+        "7",
+        "8"
+      ],
+      "doctor_responsible": "6",
+      "id": 2
+    },
+    "3": {
+      "name": "Ortopedia - Equipe A",
+      "professionals": [
+        "9",
+        "10",
+        "11"
+      ],
+      "doctor_responsible": "9",
+      "id": 3
+    },
+    "4": {
+      "name": "Ortopedia - Equipe B",
+      "professionals": [
+        "12",
+        "13",
+        "14"
+      ],
+      "doctor_responsible": "12",
+      "id": 4
+    },
+    "5": {
+      "name": "Ortopedia - Equipe C",
+      "professionals": [
+        "15",
+        "16",
+        "17"
+      ],
+      "doctor_responsible": "15",
+      "id": 5
+    },
+    "6": {
+      "name": "Cardiologia - Equipe A",
+      "professionals": [
+        "18",
+        "19",
+        "20"
+      ],
+      "doctor_responsible": "18",
+      "id": 6
+    },
+    "7": {
+      "name": "Cardiologia - Equipe B",
+      "professionals": [
+        "21",
+        "22",
+        "23"
+      ],
+      "doctor_responsible": "21",
+      "id": 7
+    },
+    "8": {
+      "name": "Cardiologia - Equipe C",
+      "professionals": [
+        "24",
+        "25",
+        "26"
+      ],
+      "doctor_responsible": "24",
+      "id": 8
+    },
+    "9": {
+      "name": "Pediatria - Equipe A",
+      "professionals": [
+        "27",
+        "28",
+        "29"
+      ],
+      "doctor_responsible": "27",
+      "id": 9
+    },
+    "10": {
+      "name": "Pediatria - Equipe B",
+      "professionals": [
+        "30",
+        "31",
+        "32"
+      ],
+      "doctor_responsible": "30",
+      "id": 10
+    },
+    "11": {
+      "name": "Pediatria - Equipe C",
+      "professionals": [
+        "33",
+        "34",
+        "35"
+      ],
+      "doctor_responsible": "33",
+      "id": 11
+    },
+    "12": {
+      "name": "Ginecologia - Equipe A",
+      "professionals": [
+        "36",
+        "37",
+        "38"
+      ],
+      "doctor_responsible": "36",
+      "id": 12
+    },
+    "13": {
+      "name": "Ginecologia - Equipe B",
+      "professionals": [
+        "39",
+        "40",
+        "41"
+      ],
+      "doctor_responsible": "39",
+      "id": 13
+    },
+    "14": {
+      "name": "Ginecologia - Equipe C",
+      "professionals": [
+        "42",
+        "43",
+        "44"
+      ],
+      "doctor_responsible": "42",
+      "id": 14
+    }
+  },
+  "rooms": {
+    "0": {
+      "name": "Sala0",
+      "id": 0
+    },
+    "1": {
+      "name": "Sala1",
+      "id": 1
+    },
+    "2": {
+      "name": "Sala2",
+      "id": 2
+    },
+    "3": {
+      "name": "Sala3",
+      "id": 3
+    },
+    "4": {
+      "name": "Sala4",
+      "id": 4
+    }
+  },
+  "cirurgies": {
+    "0": {
+      "cirurgy_name": "Cirurgia de Reparo de Aneurisma Cerebral",
+      "patient_name": "Ana Maria Silva",
+      "duration": 360,
+      "priority": 92,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["0", "1"],
+      "id": 0
+    },
+    "1": {
+      "cirurgy_name": "Colecistectomia Laparoscópica",
+      "patient_name": "Carlos Eduardo Pereira",
+      "duration": 120,
+      "priority": 75,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["0", "1"],
+      "id": 1
+    },
+    "2": {
+      "cirurgy_name": "Cirurgia de Catarata",
+      "patient_name": "Maria Clara Rodrigues",
+      "duration": 90,
+      "priority": 55,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["0", "1"],
+      "id": 2
+    },
+    "3": {
+      "cirurgy_name": "Herniorrafia Inguinal",
+      "patient_name": "José da Silva",
+      "duration": 60,
+      "priority": 45,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["2"],
+      "id": 3
+    },
+    "4": {
+      "cirurgy_name": "Artroplastia Total do Quadril",
+      "patient_name": "Mariana Santos",
+      "duration": 180,
+      "priority": 80,
+      "possible_teams": ["3", "4", "5"],
+      "possible_rooms": ["2", "3"],
+      "id": 4
+    },
+    "5": {
+      "cirurgy_name": "Reparo de Fratura de Fêmur",
+      "patient_name": "Pedro Almeida",
+      "duration": 120,
+      "priority": 70,
+      "possible_teams": ["3", "4", "5"],
+      "possible_rooms": ["2", "3"],
+      "id": 5
+    },
+    "6": {
+      "cirurgy_name": "Correção de Escoliose",
+      "patient_name": "Renata Oliveira",
+      "duration": 240,
+      "priority": 65,
+      "possible_teams": ["3", "4", "5"],
+      "possible_rooms": ["2", "3"],
+      "id": 6
+    },
+    "7": {
+      "cirurgy_name": "Cirurgia de Ponte de Safena",
+      "patient_name": "Roberto Souza",
+      "duration": 300,
+      "priority": 90,
+      "possible_teams": ["6", "7", "8"],
+      "possible_rooms": ["1", "4"],
+      "id": 7
+    },
+    "8": {
+      "cirurgy_name": "Implante de Marcapasso",
+      "patient_name": "Fernanda Lima",
+      "duration": 120,
+      "priority": 85,
+      "possible_teams": ["6", "7", "8"],
+      "possible_rooms": ["1", "4"],
+      "id": 8
+    },
+    "9": {
+      "cirurgy_name": "Angioplastia Coronária",
+      "patient_name": "Paulo Gonçalves",
+      "duration": 90,
+      "priority": 60,
+      "possible_teams": ["6", "7", "8"],
+      "possible_rooms": ["1", "4"],
+      "id": 9
+    },
+    "10": {
+      "cirurgy_name": "Cirurgia de Apendicite",
+      "patient_name": "João Pedro Silva",
+      "duration": 60,
+      "priority": 40,
+      "possible_teams": ["9", "10", "11"],
+      "possible_rooms": ["0", "3"],
+      "id": 10
+    },
+    "11": {
+      "cirurgy_name": "Amigdalectomia",
+      "patient_name": "Beatriz Martins",
+      "duration": 45,
+      "priority": 35,
+      "possible_teams": ["9", "10", "11"],
+      "possible_rooms": ["0", "3"],
+      "id": 11
+    },
+    "12": {
+      "cirurgy_name": "Cirurgia de Fimose",
+      "patient_name": "Lucas Souza",
+      "duration": 30,
+      "priority": 25,
+      "possible_teams": ["9", "10", "11"],
+      "possible_rooms": ["0", "3"],
+      "id": 12
+    },
+    "13": {
+      "cirurgy_name": "Histerectomia",
+      "patient_name": "Ana Paula Costa",
+      "duration": 120,
+      "priority": 50,
+      "possible_teams": ["12", "13", "14"],
+      "possible_rooms": ["1", "4"],
+      "id": 13
+    },
+    "14": {
+      "cirurgy_name": "Mastectomia",
+      "patient_name": "Carla Ferreira",
+      "duration": 180,
+      "priority": 55,
+      "possible_teams": ["12", "13", "14"],
+      "possible_rooms": ["1", "4"],
+      "id": 14
+    },
+    "15": {
+      "cirurgy_name": "Cirurgia de Miomas Uterinos",
+      "patient_name": "Juliana Almeida",
+      "duration": 90,
+      "priority": 45,
+      "possible_teams": ["12", "13", "14"],
+      "possible_rooms": ["1", "4"],
+      "id": 15
+    },
+    "16": {
+      "cirurgy_name": "Cirurgia de Hemorroidas",
+      "patient_name": "Lucas Pereira",
+      "duration": 60,
+      "priority": 35,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["2"],
+      "id": 16
+    },
+    "17": {
+      "cirurgy_name": "Curetagem Uterina",
+      "patient_name": "Fernanda Oliveira",
+      "duration": 30,
+      "priority": 25,
+      "possible_teams": ["12", "13", "14"],
+      "possible_rooms": ["1", "4"],
+      "id": 17
+    },
+    "18": {
+      "cirurgy_name": "Lobectomia Pulmonar",
+      "patient_name": "João Mendes",
+      "duration": 240,
+      "priority": 85,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["0", "1"],
+      "id": 18
+    },
+    "19": {
+      "cirurgy_name": "Ressecção Transuretral da Próstata",
+      "patient_name": "Carlos Martins",
+      "duration": 120,
+      "priority": 65,
+      "possible_teams": ["0", "1", "2"],
+      "possible_rooms": ["0", "1"],
+      "id": 19
+    }
+  }
+}

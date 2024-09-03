@@ -859,26 +859,31 @@ class CirurgyView:
 
         self.col1, self.col2 = cntr.columns(2, gap="small")
 
-    @MyLogger.decorate_function(add_extra=["CirurgyView"])
-    def view_add_cirurgy(self, on_submit: Callable, logc: LogC):
-        with self.col1.container():
-            with st.form("Adicionar Cirurgia", clear_on_submit=True):
-                cirurgy_name = st.data_editor({'cirurgy_name': ['']}, use_container_width=True, column_config={'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True)})['cirurgy_name'][0]
-                patient_name = st.data_editor({'patient_name': ['']}, use_container_width=True, column_config={'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True)})['patient_name'][0]
-                duration = st.data_editor({'duration': [0]}, use_container_width=True, column_config={'duration': st.column_config.NumberColumn(label="Duração (min)", required=True)})['duration'][0]
-                priority = st.data_editor({'priority': [0]}, use_container_width=True, column_config={'priority': st.column_config.NumberColumn(label="Prioridade", required=True)})['priority'][0]
+    @st.dialog("Adicionar Cirurgia", width="large")
+    def view_add_cirurgy(self, on_submit: Callable):
+        cirurgy_name = st.data_editor({'cirurgy_name': ['']}, use_container_width=True, column_config={
+            'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True)})['cirurgy_name'][
+            0]
+        patient_name = st.data_editor({'patient_name': ['']}, use_container_width=True, column_config={
+            'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True)})['patient_name'][0]
+        duration = st.data_editor({'duration': [0]}, use_container_width=True, column_config={
+            'duration': st.column_config.NumberColumn(label="Duração (min)", required=True)})['duration'][0]
+        priority = st.data_editor({'priority': [0]}, use_container_width=True, column_config={
+            'priority': st.column_config.NumberColumn(label="Prioridade", required=True)})['priority'][0]
 
-                possible_teams = [x.split(' - ')[-1] for x in st.multiselect("Equipes possíveis", Data.get_teams_names_with_id())]
-                possible_rooms = st.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
+        possible_teams = [x.split(' - ')[-1] for x in
+                          st.multiselect("Equipes possíveis", Data.get_teams_names_with_id())]
+        possible_rooms = st.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
 
-                submit = st.form_submit_button("Adicionar Cirurgia", use_container_width=True)
+        submit = st.button("Adicionar Cirurgia", use_container_width=True)
 
-                if submit and cirurgy_name and patient_name and duration and priority:
-                    on_submit(
-                        cirurgy_name=cirurgy_name, patient_name=patient_name, duration=duration,
-                        priority=priority, possible_teams=possible_teams, possible_rooms=possible_rooms,
-                        logc=logc
-                    )
+        if submit and cirurgy_name and patient_name and duration and priority:
+            on_submit(
+                cirurgy_name=cirurgy_name, patient_name=patient_name, duration=duration,
+                priority=priority, possible_teams=possible_teams, possible_rooms=possible_rooms,
+                logc=logc
+            )
+            st.rerun()
 
     @MyLogger.decorate_function(add_extra=["CirurgyView"])
     def view_cirurgy_list(self, cirurgies: list, logc: LogC):
@@ -940,8 +945,8 @@ class CirurgyModel(Cirurgia):
 class CirurgyControl:
     def __init__(self, logc: LogC = None):
         self.cirurgy_view = CirurgyView(st.container(border=True))
-        self.cirurgy_view.view_add_cirurgy(on_submit=self.on_submit, logc=logc)
-
+        self.cirurgy_view.col1.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
+                                      kwargs={"on_submit": self.on_submit}, use_container_width=True, key="add_cirurgy")
         self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
 
     @MyLogger.decorate_function(add_extra=["CirurgyControl"])

@@ -12,8 +12,10 @@ import streamlit as st
 from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export
 from difflib import SequenceMatcher
 
+
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
+
 
 if __name__ == '__main__':
     st.set_page_config(
@@ -32,7 +34,6 @@ if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__
     logger.add("loguru.log", level="TRACE", serialize=True)
     st.session_state['__defined_loguru_config__'] = True
 
-
 if __name__ == '__main__':
     with st.expander("Configurações", expanded=False):
         dist, ord = st.tabs(["Distribuição", "Ordenação"])
@@ -41,32 +42,45 @@ if __name__ == '__main__':
 
             st.slider("1. Número de gerações", min_value=1, max_value=50, value=5, step=1, key="dist_num_generations")
             st.slider("1. Solução por população", min_value=1, max_value=150, value=30, step=1, key="dist_sol_per_pop")
-            st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["dist_sol_per_pop"], value=5, step=1, key="dist_num_parents_mating")
+            st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["dist_sol_per_pop"],
+                      value=5, step=1, key="dist_num_parents_mating")
 
             with st.container(border=True):
                 st.write("Configurações avançadas")
-                st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"], key="dist_crossover_type")
+                st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
+                             key="dist_crossover_type")
                 st.selectbox("1. Tipo de mutação", ["adaptive", "random"], key="dist_mutation_type")
-                st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1, key="dist_mutation_percent_genes")
-                st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"], key="dist_parent_selection_type")
-                st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['dist_sol_per_pop'], value=5, step=1, key="dist_keep_parents")
+                st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
+                          key="dist_mutation_percent_genes")
+                st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"],
+                             key="dist_parent_selection_type")
+                st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['dist_sol_per_pop'],
+                          value=5, step=1, key="dist_keep_parents")
 
         with ord:
             st.write("Ordenação das Cirurgias")
 
             st.checkbox("Ordem Simples", value=False, key="simple_order")
 
-            st.slider("2. Número de gerações", min_value=1, max_value=500, value=10, step=1, disabled=st.session_state['simple_order'], key="ord_num_generations")
-            st.slider("2. Solução por população", min_value=1, max_value=500, value=30, step=1, disabled=st.session_state['simple_order'], key="ord_sol_per_pop")
-            st.slider("2. Número de pais para cruzamento", min_value=1, max_value=st.session_state['ord_sol_per_pop'], value=15, step=1, disabled=st.session_state['simple_order'], key="ord_num_parents_mating")
+            st.slider("2. Número de gerações", min_value=1, max_value=500, value=10, step=1,
+                      disabled=st.session_state['simple_order'], key="ord_num_generations")
+            st.slider("2. Solução por população", min_value=1, max_value=500, value=30, step=1,
+                      disabled=st.session_state['simple_order'], key="ord_sol_per_pop")
+            st.slider("2. Número de pais para cruzamento", min_value=1, max_value=st.session_state['ord_sol_per_pop'],
+                      value=15, step=1, disabled=st.session_state['simple_order'], key="ord_num_parents_mating")
 
             with st.container(border=True):
                 st.write("Configurações avançadas")
-                st.selectbox("2. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"], disabled=st.session_state['simple_order'], key="ord_crossover_type")
-                st.selectbox("2. Tipo de mutação", ["adaptive", "random"], disabled=st.session_state['simple_order'], key="ord_mutation_type")
-                st.slider("2. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1, disabled=st.session_state['simple_order'], key="ord_mutation_percent_genes")
-                st.selectbox("2. Tipo de seleção de pais", ["sss", "tournament", "rank"], disabled=st.session_state['simple_order'], key="ord_parent_selection_type")
-                st.slider("2. Número de pais mantidos", min_value=1, max_value=st.session_state['ord_sol_per_pop'], value=5, step=1, disabled=st.session_state['simple_order'], key="ord_keep_parents")
+                st.selectbox("2. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
+                             disabled=st.session_state['simple_order'], key="ord_crossover_type")
+                st.selectbox("2. Tipo de mutação", ["adaptive", "random"], disabled=st.session_state['simple_order'],
+                             key="ord_mutation_type")
+                st.slider("2. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
+                          disabled=st.session_state['simple_order'], key="ord_mutation_percent_genes")
+                st.selectbox("2. Tipo de seleção de pais", ["sss", "tournament", "rank"],
+                             disabled=st.session_state['simple_order'], key="ord_parent_selection_type")
+                st.slider("2. Número de pais mantidos", min_value=1, max_value=st.session_state['ord_sol_per_pop'],
+                          value=5, step=1, disabled=st.session_state['simple_order'], key="ord_keep_parents")
 
     st.markdown('---')
 
@@ -100,7 +114,8 @@ class ProfessionalView:
         disable = True if not professionals else False
         if not disable:
             with self.professionals_selection:
-                st.selectbox("Selecione um profissional", professionals, index=default, on_change=on_change, key="_selected_professional", disabled=disable, kwargs={"logc": logc})
+                st.selectbox("Selecione um profissional", professionals, index=default, on_change=on_change,
+                             key="_selected_professional", disabled=disable, kwargs={"logc": logc})
         else:
             with self.professionals_selection:
                 st.selectbox("Selecione um profissional", professionals, disabled=disable)
@@ -114,7 +129,8 @@ class ProfessionalView:
 
     @log_func
     @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_add_professional_button(self, professional_view: "ProfessionalView", on_click: Callable, logc: LogC) -> bool:
+    def view_add_professional_button(self, professional_view: "ProfessionalView", on_click: Callable,
+                                     logc: LogC) -> bool:
         return self.add_professional_button.button(
             "Adicionar Profissional",
             on_click=on_click,
@@ -129,7 +145,7 @@ class ProfessionalView:
     @MyLogger.decorate_function(add_extra=["ProfessionalView"])
     def view_professional_teams(self, all_teams: list[str], teams_default: list[str], on_change: Callable, logc: LogC):
         disable = True if not st.session_state['selected_professional'] else False
-        #logger.debug(f"{teams_default=}")
+        # logger.debug(f"{teams_default=}")
         self.professional_teams.write("Equipes")
         self.professional_teams.multiselect(
             f"Selecione as equipes",
@@ -314,7 +330,7 @@ class ProfessionalControl:
         teams_str: list[str] = st.session_state['_multiselected_teams']
 
         teams = [TeamModel.get_by_name(team) for team in teams_str]
-        #logger.debug(f"{teams=}")
+        # logger.debug(f"{teams=}")
         st.session_state['selected_professional'].vteams = teams
 
 
@@ -358,7 +374,8 @@ class TeamView:
         disable = True if not teams else False
         if not disable:
             with self.teams_selection:
-                st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change, key="_selected_team", disabled=disable)
+                st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change, key="_selected_team",
+                             disabled=disable)
                 return st.session_state['_selected_team']
         else:
             with self.teams_selection:
@@ -381,10 +398,11 @@ class TeamView:
         self.creation_warns.error("Nome de equipe já existente.")
 
     @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_doctor_responsible(self, on_change: Callable, doctor: "ProfessionalModel", team: "TeamModel", logc: LogC) -> None:
+    def view_doctor_responsible(self, on_change: Callable, doctor: "ProfessionalModel", team: "TeamModel",
+                                logc: LogC) -> None:
         disable = True if not st.session_state['selected_team'] else False
         options = [f"{prof.name} - {prof.id}" for prof in team] if team else []
-        #logger.debug(f"{doctor.name if doctor else None}", **logc)
+        # logger.debug(f"{doctor.name if doctor else None}", **logc)
         if not disable:
             self.doctor_responsible.selectbox(
                 "Médico responsável",
@@ -559,7 +577,7 @@ class TeamControl:
             logc=logc,
         )
 
-        #logger.debug(f"{st.session_state['doctor_responsible_default']=}")
+        # logger.debug(f"{st.session_state['doctor_responsible_default']=}")
         self.team_view.view_doctor_responsible(
             on_change=self.on_change_responsible,
             doctor=st.session_state['doctor_responsible_default'],
@@ -589,7 +607,7 @@ class TeamControl:
         id = int(st.session_state['_doctor_responsible'].split(" - ")[1])
         st.session_state['selected_team'].set_doctor_responsible(id)
         st.session_state['doctor_responsible_default'] = ProfessionalModel.get_by_id(id)
-        #logger.debug(f"{st.session_state['doctor_responsible_default'].name=}", **logc)
+        # logger.debug(f"{st.session_state['doctor_responsible_default'].name=}", **logc)
 
     @staticmethod
     def on_change_team():
@@ -600,7 +618,8 @@ class TeamControl:
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
     def on_change_professionals(logc: LogC):
         professionals_str: list[str] = st.session_state['_profissionals']
-        professionals = [ProfessionalModel.get_by_id(int(professional.split(" - ")[1])) for professional in professionals_str]
+        professionals = [ProfessionalModel.get_by_id(int(professional.split(" - ")[1])) for professional in
+                         professionals_str]
         st.session_state['selected_team'].vprofessionals = professionals
 
     @staticmethod
@@ -697,7 +716,8 @@ class RoomView:
         disable = True if not rooms else False
         if not disable:
             with self.rooms_selection:
-                st.selectbox("Selecione uma sala", rooms, index=default, on_change=on_change, key="_selected_room", disabled=disable, kwargs={"logc": logc})
+                st.selectbox("Selecione uma sala", rooms, index=default, on_change=on_change, key="_selected_room",
+                             disabled=disable, kwargs={"logc": logc})
                 return st.session_state['_selected_room']
         else:
             with self.rooms_selection:
@@ -720,8 +740,9 @@ class RoomView:
 
     @MyLogger.decorate_function(add_extra=["RoomsView"])
     def view_add_all_rooms_button(self, room_view: "RoomView", on_click: Callable, logc: LogC) -> bool:
-        return self.add_all_romms_buttons.button("Adicionar todas as salas", on_click=on_click, use_container_width=True,
-                                           kwargs={"room_view": room_view, "logc": logc})
+        return self.add_all_romms_buttons.button("Adicionar todas as salas", on_click=on_click,
+                                                 use_container_width=True,
+                                                 kwargs={"room_view": room_view, "logc": logc})
 
     @MyLogger.decorate_function(add_extra=["RoomsView"])
     def view_add_error_duplicate(self, logc: LogC):
@@ -859,6 +880,9 @@ class CirurgyView:
 
         self.col1, self.col2 = cntr.columns(2, gap="small")
 
+        with self.col1:
+            self.add_cirurgy_button = st.container()
+
     @st.dialog("Adicionar Cirurgia", width="large")
     def view_add_cirurgy(self, on_submit: Callable):
         cirurgy_name = st.data_editor({'cirurgy_name': ['']}, use_container_width=True, column_config={
@@ -893,7 +917,6 @@ class CirurgyView:
 
 if 'selected_cirurgy' not in st.session_state:
     st.session_state['selected_cirurgy'] = None
-
 
 if 'cirurgies' not in st.session_state:
     st.session_state['cirurgies'] = []
@@ -937,7 +960,7 @@ class CirurgyModel(Cirurgia):
 
     def __repr__(self):
         try:
-            return f'Cirurgia({self.cirurgy_name})' #f'Cirurgia({self.cirurgy_name}, {self.equipe.nome}, {self.duration})'
+            return f'Cirurgia({self.cirurgy_name})'  # f'Cirurgia({self.cirurgy_name}, {self.equipe.nome}, {self.duration})'
         except (ValueError, TypeError):
             return f'Cirurgia({self.cirurgy_name}, {self.duration})'
 
@@ -945,8 +968,9 @@ class CirurgyModel(Cirurgia):
 class CirurgyControl:
     def __init__(self, logc: LogC = None):
         self.cirurgy_view = CirurgyView(st.container(border=True))
-        self.cirurgy_view.col1.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
-                                      kwargs={"on_submit": self.on_submit}, use_container_width=True, key="add_cirurgy")
+        self.cirurgy_view.add_cirurgy_button.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
+                                                    kwargs={"on_submit": self.on_submit}, use_container_width=True,
+                                                    key="add_cirurgy")
         self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
 
     @MyLogger.decorate_function(add_extra=["CirurgyControl"])
@@ -977,7 +1001,8 @@ class Data:
     @staticmethod
     def get_dict() -> dict:
         return {
-            "professionals": {i: professional.get_dict() for i, professional in enumerate(ProfessionalModel.professionals)},
+            "professionals": {i: professional.get_dict() for i, professional in
+                              enumerate(ProfessionalModel.professionals)},
             "teams": {i: team.get_dict() for i, team in enumerate(TeamModel.teams)},
             "rooms": {i: room.get_dict() for i, room in enumerate(RoomModel.rooms)},
             "cirurgies": {i: cirurgy.get_dict() for i, cirurgy in enumerate(CirurgyModel.rooms)}
@@ -1084,7 +1109,8 @@ if __name__ == '__main__':
                  os.listdir('data'), index=None, key='data_json', on_change=Data.load_json)
 
     with MyLogger(add_tags=['program']) as logc:
-        tab_cirgs, tab_profs, tab_teams, tab_control = st.tabs(["💉 Cirurgias", "👨‍⚕️ Profissionais", "👥 Equipes", "🏥 Salas"])
+        tab_cirgs, tab_profs, tab_teams, tab_control = st.tabs(
+            ["💉 Cirurgias", "👨‍⚕️ Profissionais", "👥 Equipes", "🏥 Salas"])
         with tab_profs:
             professional_control = ProfessionalControl(logc=logc)
         with tab_teams:
@@ -1124,5 +1150,3 @@ if __name__ == '__main__':
             algoritmo = Algoritmo(mediador, Data.get_cirurgies())
             algoritmo.executar(solucao)
             st.dataframe(algoritmo.dados_tabela)
-
-

@@ -886,6 +886,16 @@ class CirurgyView:
             self.add_cirurgy_button = st.container()
             self.select_cirurgy = st.container()
 
+        with self.col2:
+            self.edit_name = st.container()
+
+    def view_edit_name(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_name.text_input("Nome da cirurgia", key="_change_cirugy_name",
+                                      value=cirurgy.cirurgy_name, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_name.text_input("Nome da cirurgia", disabled=True)
+
     def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=0):
         if cirurgies:
             with self.select_cirurgy:
@@ -1002,6 +1012,12 @@ class CirurgyControl:
         # self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
         self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
         self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
+        self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
+
+    @staticmethod
+    def on_change_name(logc: LogC):
+        name = st.session_state['_change_cirugy_name']
+        st.session_state['selected_cirurgy'].cirurgy_name = name
 
     @staticmethod
     def on_selection(logc: LogC):

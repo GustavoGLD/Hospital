@@ -884,6 +884,17 @@ class CirurgyView:
         with self.col1:
             self.list_cirurgies = st.container()
             self.add_cirurgy_button = st.container()
+            self.select_cirurgy = st.container()
+
+    def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=0):
+        if cirurgies:
+            with self.select_cirurgy:
+                st.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
+                             key="_selected_cirurgy_name",
+                             disabled=False, kwargs={"logc": logc})
+        else:
+            with self.select_cirurgy:
+                st.selectbox("Selecione uma cirurgia", cirurgies, disabled=True)
 
     def view_list_cirurgies(self, cirurgies: dict[str, Union[str, int, list]]):
         column_config = {
@@ -988,8 +999,16 @@ class CirurgyControl:
         self.cirurgy_view.add_cirurgy_button.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
                                                     kwargs={"on_submit": self.on_submit}, use_container_width=True,
                                                     key="add_cirurgy")
-        #self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
+        # self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
         self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
+        self.cirurgy_view.view_selection([cirurgy.cirurgy_name for cirurgy in CirurgyModel.rooms], self.on_selection,
+                                         logc=logc)
+
+    @staticmethod
+    def on_selection(logc: LogC):
+        if '_selected_cirurgy_name' in st.session_state:
+            selected_name = st.session_state['_selected_cirurgy_name']
+
 
     @staticmethod
     def make_list_view_dict(cirurgies: list[CirurgyModel]) -> dict:

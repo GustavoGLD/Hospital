@@ -895,7 +895,10 @@ class CirurgyView:
             'possible_rooms': st.column_config.ListColumn(label="Salas possíveis"),
         }
 
-        self.list_cirurgies.dataframe(cirurgies, use_container_width=True, column_config=column_config)
+        if cirurgies:
+            self.list_cirurgies.dataframe(cirurgies, column_config=column_config)
+        else:
+            self.list_cirurgies.dataframe(cirurgies, column_config=column_config, use_container_width=True)
 
     @st.dialog("Adicionar Cirurgia", width="large")
     def view_add_cirurgy(self, on_submit: Callable):

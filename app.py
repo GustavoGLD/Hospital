@@ -1001,14 +1001,14 @@ class CirurgyControl:
                                                     key="add_cirurgy")
         # self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
         self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
-        self.cirurgy_view.view_selection([cirurgy.cirurgy_name for cirurgy in CirurgyModel.rooms], self.on_selection,
-                                         logc=logc)
+        self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
 
     @staticmethod
     def on_selection(logc: LogC):
         if '_selected_cirurgy_name' in st.session_state:
             selected_name = st.session_state['_selected_cirurgy_name']
-
+            id = selected_name.split(" - ")[-1]
+            st.session_state['selected_cirurgy'] = Data.get_cirurgy_by_id(id)
 
     @staticmethod
     def make_list_view_dict(cirurgies: list[CirurgyModel]) -> dict:
@@ -1121,6 +1121,13 @@ class Data:
         raise ValueError(f"Professional {_id} not found")
 
     @staticmethod
+    def get_cirurgy_by_id(_id: int) -> CirurgyModel:
+        for cirurgy in CirurgyModel.rooms:
+            if int(cirurgy.id) == int(_id):
+                return cirurgy
+        raise ValueError(f"Cirurgy {_id} not found")
+
+    @staticmethod
     def get_professionals_names_with_id() -> list[str]:
         return [f"{professional.name} - {professional.id}" for professional in ProfessionalModel.professionals]
 
@@ -1131,6 +1138,10 @@ class Data:
     @staticmethod
     def get_rooms_names_with_id() -> list[str]:
         return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
+
+    @staticmethod
+    def get_cirurgies_names_with_id() -> list[str]:
+        return [f"{cirurgy.patient_name} - {cirurgy.cirurgy_name} - {cirurgy.id}" for cirurgy in CirurgyModel.rooms]
 
     @staticmethod
     def get_cirurgies() -> list[CirurgyModel]:

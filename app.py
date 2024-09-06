@@ -892,6 +892,17 @@ class CirurgyView:
             self.edit_duration = st.container()
             self.edit_priority = st.container()
             self.edit_possible_teams = st.container()
+            self.edit_possible_rooms = st.container()
+
+    def view_edit_possible_rooms(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_possible_rooms.multiselect("Salas possíveis",
+                                                 Data.get_rooms_names_with_id(),
+                                                 key="_change_possible_rooms",
+                                                 default=Data.rooms_ids_to_rooms_with_name_and_id(cirurgy.possible_rooms),
+                                                 on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_possible_rooms.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
 
     def view_edit_possible_teams(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
@@ -1053,6 +1064,14 @@ class CirurgyControl:
         self.cirurgy_view.view_edit_duration(st.session_state['selected_cirurgy'], self.on_change_duration, logc=logc)
         self.cirurgy_view.view_edit_possible_teams(st.session_state['selected_cirurgy'], self.on_change_possible_teams,
                                                   logc=logc)
+        self.cirurgy_view.view_edit_possible_rooms(st.session_state['selected_cirurgy'], self.on_change_possible_rooms,
+                                                    logc=logc)
+
+    @staticmethod
+    def on_change_possible_rooms(logc: LogC):
+        possible_rooms: list[str] = st.session_state['_change_possible_rooms']
+        st.session_state['selected_cirurgy'].possible_rooms = [room.split(' - ')[-1] for room in possible_rooms]
+
 
     @staticmethod
     def on_change_possible_teams(logc: LogC):
@@ -1177,7 +1196,7 @@ class Data:
     @staticmethod
     def get_room_by_id(_id: int) -> RoomModel:
         for room in RoomModel.rooms:
-            if room.id == _id:
+            if int(room.id) == int(_id):
                 return room
         raise ValueError(f"Room {_id} not found")
 
@@ -1222,6 +1241,10 @@ class Data:
     @staticmethod
     def get_rooms_names_with_id() -> list[str]:
         return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
+
+    @staticmethod
+    def rooms_ids_to_rooms_with_name_and_id(rooms_ids: list[int]) -> list[str]:
+        return [f"{Data.get_room_by_id(room_id).name} - {room_id}" for room_id in rooms_ids]
 
     @staticmethod
     def get_cirurgies_names_with_id() -> list[str]:

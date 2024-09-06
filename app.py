@@ -884,6 +884,73 @@ class CirurgyView:
         with self.col1:
             self.list_cirurgies = st.container()
             self.add_cirurgy_button = st.container()
+            self.select_cirurgy = st.container()
+
+        with self.col2:
+            self.edit_name = st.container()
+            self.edit_patient = st.container()
+            self.edit_duration = st.container()
+            self.edit_priority = st.container()
+            self.edit_possible_teams = st.container()
+            self.edit_possible_rooms = st.container()
+
+    def view_edit_possible_rooms(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_possible_rooms.multiselect("Salas possíveis",
+                                                 Data.get_rooms_names_with_id(),
+                                                 key="_change_possible_rooms",
+                                                 default=Data.rooms_ids_to_rooms_with_name_and_id(cirurgy.possible_rooms),
+                                                 on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_possible_rooms.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
+
+    def view_edit_possible_teams(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_possible_teams.multiselect("Equipes possíveis",
+                                                 Data.get_teams_names_with_id(),
+                                                 key="_change_possible_teams",
+                                                 default=Data.teams_ids_to_teams_with_name_and_id(cirurgy.possible_teams),
+                                                 on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_possible_teams.multiselect("Equipes possíveis", Data.get_teams_names_with_id(), disabled=True)
+
+    def view_edit_duration(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_duration.number_input("Duração (min)", key="_change_duration",
+                                        value=cirurgy.duration, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_duration.number_input("Duração (min)", disabled=True)
+
+    def view_edit_priority(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_priority.number_input("Prioridade", key="_change_priority",
+                                        value=cirurgy.priority, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_priority.number_input("Prioridade", disabled=True)
+
+    def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_patient.text_input("Nome do paciente", key="_change_patient_name",
+                                      value=cirurgy.patient_name, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_patient.text_input("Nome do paciente", disabled=True)
+
+    def view_edit_name(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_name.text_input("Nome da cirurgia", key="_change_cirugy_name",
+                                      value=cirurgy.cirurgy_name, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_name.text_input("Nome da cirurgia", disabled=True)
+
+    def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=None):
+        if cirurgies:
+            with self.select_cirurgy:
+                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
+                             key="_selected_cirurgy_name",
+                             disabled=False, kwargs={"logc": logc})
+        else:
+            with self.select_cirurgy:
+                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, disabled=True)
 
     def view_list_cirurgies(self, cirurgies: dict[str, Union[str, int, list]]):
         column_config = {
@@ -988,8 +1055,55 @@ class CirurgyControl:
         self.cirurgy_view.add_cirurgy_button.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
                                                     kwargs={"on_submit": self.on_submit}, use_container_width=True,
                                                     key="add_cirurgy")
-        #self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
+        # self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
         self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
+        self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
+        self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
+        self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
+        self.cirurgy_view.view_edit_priority(st.session_state['selected_cirurgy'], self.on_change_priority, logc=logc)
+        self.cirurgy_view.view_edit_duration(st.session_state['selected_cirurgy'], self.on_change_duration, logc=logc)
+        self.cirurgy_view.view_edit_possible_teams(st.session_state['selected_cirurgy'], self.on_change_possible_teams,
+                                                  logc=logc)
+        self.cirurgy_view.view_edit_possible_rooms(st.session_state['selected_cirurgy'], self.on_change_possible_rooms,
+                                                    logc=logc)
+
+    @staticmethod
+    def on_change_possible_rooms(logc: LogC):
+        possible_rooms: list[str] = st.session_state['_change_possible_rooms']
+        st.session_state['selected_cirurgy'].possible_rooms = [room.split(' - ')[-1] for room in possible_rooms]
+
+
+    @staticmethod
+    def on_change_possible_teams(logc: LogC):
+        possible_teams: list[str] = st.session_state['_change_possible_teams']
+        st.session_state['selected_cirurgy'].possible_teams = [team.split(' - ')[-1] for team in possible_teams]
+
+    @staticmethod
+    def on_change_duration(logc: LogC):
+        duration = st.session_state['_change_duration']
+        st.session_state['selected_cirurgy'].duration = duration
+
+    @staticmethod
+    def on_change_priority(logc: LogC):
+        priority = st.session_state['_change_priority']
+        st.session_state['selected_cirurgy'].priority = priority
+
+    @staticmethod
+    def on_change_patient(logc: LogC):
+        name = st.session_state['_change_patient_name']
+        st.session_state['selected_cirurgy'].patient_name = name
+
+    @staticmethod
+    def on_change_name(logc: LogC):
+        name = st.session_state['_change_cirugy_name']
+        st.session_state['selected_cirurgy'].cirurgy_name = name
+
+    @staticmethod
+    def on_selection(logc: LogC):
+        if '_selected_cirurgy_name' in st.session_state:
+            selected_name = st.session_state['_selected_cirurgy_name']
+            id = selected_name.split(" - ")[-1]
+            st.session_state['selected_cirurgy'] = Data.get_cirurgy_by_id(id)
 
     @staticmethod
     def make_list_view_dict(cirurgies: list[CirurgyModel]) -> dict:
@@ -1082,7 +1196,7 @@ class Data:
     @staticmethod
     def get_room_by_id(_id: int) -> RoomModel:
         for room in RoomModel.rooms:
-            if room.id == _id:
+            if int(room.id) == int(_id):
                 return room
         raise ValueError(f"Room {_id} not found")
 
@@ -1102,6 +1216,13 @@ class Data:
         raise ValueError(f"Professional {_id} not found")
 
     @staticmethod
+    def get_cirurgy_by_id(_id: int) -> CirurgyModel:
+        for cirurgy in CirurgyModel.rooms:
+            if int(cirurgy.id) == int(_id):
+                return cirurgy
+        raise ValueError(f"Cirurgy {_id} not found")
+
+    @staticmethod
     def get_professionals_names_with_id() -> list[str]:
         return [f"{professional.name} - {professional.id}" for professional in ProfessionalModel.professionals]
 
@@ -1110,8 +1231,24 @@ class Data:
         return [f"{team.name} - {team.id}" for team in TeamModel.teams]
 
     @staticmethod
+    def teams_ids_to_teams_with_name_and_id(teams_ids: list[int]) -> list[str]:
+        return [f"{Data.get_team_by_id(team_id).name} - {team_id}" for team_id in teams_ids]
+
+    @staticmethod
+    def extract_names_and_ids_from_teams(teams: list[TeamModel]) -> list[str]:
+        return [f"{team.name} - {team.id}" for team in teams]
+
+    @staticmethod
     def get_rooms_names_with_id() -> list[str]:
         return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
+
+    @staticmethod
+    def rooms_ids_to_rooms_with_name_and_id(rooms_ids: list[int]) -> list[str]:
+        return [f"{Data.get_room_by_id(room_id).name} - {room_id}" for room_id in rooms_ids]
+
+    @staticmethod
+    def get_cirurgies_names_with_id() -> list[str]:
+        return [f"{cirurgy.patient_name} - {cirurgy.cirurgy_name} - {cirurgy.id}" for cirurgy in CirurgyModel.rooms]
 
     @staticmethod
     def get_cirurgies() -> list[CirurgyModel]:
@@ -1125,6 +1262,7 @@ class Data:
     @staticmethod
     def get_teams() -> list[TeamModel]:
         return TeamModel.teams
+
 
     @staticmethod
     def clear_data():

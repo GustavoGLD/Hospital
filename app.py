@@ -892,6 +892,13 @@ class CirurgyView:
             self.edit_duration = st.container()
             self.edit_priority = st.container()
 
+    def view_edit_duration(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_duration.number_input("Duração (min)", key="_change_duration",
+                                        value=cirurgy.duration, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_duration.number_input("Duração (min)", disabled=True)
+
     def view_edit_priority(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
             self.edit_priority.number_input("Prioridade", key="_change_priority",
@@ -1032,6 +1039,12 @@ class CirurgyControl:
         self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
         self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
         self.cirurgy_view.view_edit_priority(st.session_state['selected_cirurgy'], self.on_change_priority, logc=logc)
+        self.cirurgy_view.view_edit_duration(st.session_state['selected_cirurgy'], self.on_change_duration, logc=logc)
+
+    @staticmethod
+    def on_change_duration(logc: LogC):
+        duration = st.session_state['_change_duration']
+        st.session_state['selected_cirurgy'].duration = duration
 
     @staticmethod
     def on_change_priority(logc: LogC):

@@ -891,6 +891,17 @@ class CirurgyView:
             self.edit_patient = st.container()
             self.edit_duration = st.container()
             self.edit_priority = st.container()
+            self.edit_possible_teams = st.container()
+
+    def view_edit_possible_teams(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_possible_teams.multiselect("Equipes possíveis",
+                                                 Data.get_teams_names_with_id(),
+                                                 key="_change_possible_teams",
+                                                 default=Data.teams_ids_to_teams_with_name_and_id(cirurgy.possible_teams),
+                                                 on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_possible_teams.multiselect("Equipes possíveis", Data.get_teams_names_with_id(), disabled=True)
 
     def view_edit_duration(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
@@ -1040,6 +1051,13 @@ class CirurgyControl:
         self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
         self.cirurgy_view.view_edit_priority(st.session_state['selected_cirurgy'], self.on_change_priority, logc=logc)
         self.cirurgy_view.view_edit_duration(st.session_state['selected_cirurgy'], self.on_change_duration, logc=logc)
+        self.cirurgy_view.view_edit_possible_teams(st.session_state['selected_cirurgy'], self.on_change_possible_teams,
+                                                  logc=logc)
+
+    @staticmethod
+    def on_change_possible_teams(logc: LogC):
+        possible_teams: list[str] = st.session_state['_change_possible_teams']
+        st.session_state['selected_cirurgy'].possible_teams = [team.split(' - ')[-1] for team in possible_teams]
 
     @staticmethod
     def on_change_duration(logc: LogC):
@@ -1194,6 +1212,14 @@ class Data:
         return [f"{team.name} - {team.id}" for team in TeamModel.teams]
 
     @staticmethod
+    def teams_ids_to_teams_with_name_and_id(teams_ids: list[int]) -> list[str]:
+        return [f"{Data.get_team_by_id(team_id).name} - {team_id}" for team_id in teams_ids]
+
+    @staticmethod
+    def extract_names_and_ids_from_teams(teams: list[TeamModel]) -> list[str]:
+        return [f"{team.name} - {team.id}" for team in teams]
+
+    @staticmethod
     def get_rooms_names_with_id() -> list[str]:
         return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
 
@@ -1213,6 +1239,7 @@ class Data:
     @staticmethod
     def get_teams() -> list[TeamModel]:
         return TeamModel.teams
+
 
     @staticmethod
     def clear_data():

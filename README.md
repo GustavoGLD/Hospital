@@ -3,8 +3,8 @@ Baixar Projeto Zipado:
 https://github.com/GustavoGLD/Hospital/archive/refs/heads/main.zip
 
 ----
-Como executar:
 
+Como executar, depois de descompactar e abrir a pasta `Hospital-main`:
 ```
 venv venv
 .\Scripts\activate

@@ -888,13 +888,23 @@ class CirurgyView:
 
         with self.col2:
             self.edit_name = st.container()
+            self.edit_patient = st.container()
+            self.edit_duration = st.container()
+            self.edit_priority = st.container()
+
+    def view_edit_priority(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_priority.number_input("Prioridade", key="_change_priority",
+                                        value=cirurgy.priority, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_priority.number_input("Prioridade", disabled=True)
 
     def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
-            self.edit_name.text_input("Nome do paciente", key="_change_patient_name",
+            self.edit_patient.text_input("Nome do paciente", key="_change_patient_name",
                                       value=cirurgy.patient_name, on_change=on_change, kwargs={"logc": logc})
         else:
-            self.edit_name.text_input("Nome do paciente", disabled=True)
+            self.edit_patient.text_input("Nome do paciente", disabled=True)
 
     def view_edit_name(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
@@ -906,12 +916,12 @@ class CirurgyView:
     def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=None):
         if cirurgies:
             with self.select_cirurgy:
-                st.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
+                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
                              key="_selected_cirurgy_name",
                              disabled=False, kwargs={"logc": logc})
         else:
             with self.select_cirurgy:
-                st.selectbox("Selecione uma cirurgia", cirurgies, disabled=True)
+                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, disabled=True)
 
     def view_list_cirurgies(self, cirurgies: dict[str, Union[str, int, list]]):
         column_config = {
@@ -1021,6 +1031,12 @@ class CirurgyControl:
         self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
         self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
         self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
+        self.cirurgy_view.view_edit_priority(st.session_state['selected_cirurgy'], self.on_change_priority, logc=logc)
+
+    @staticmethod
+    def on_change_priority(logc: LogC):
+        priority = st.session_state['_change_priority']
+        st.session_state['selected_cirurgy'].priority = priority
 
     @staticmethod
     def on_change_patient(logc: LogC):

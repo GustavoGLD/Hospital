@@ -889,6 +889,13 @@ class CirurgyView:
         with self.col2:
             self.edit_name = st.container()
 
+    def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
+        if cirurgy:
+            self.edit_name.text_input("Nome do paciente", key="_change_patient_name",
+                                      value=cirurgy.patient_name, on_change=on_change, kwargs={"logc": logc})
+        else:
+            self.edit_name.text_input("Nome do paciente", disabled=True)
+
     def view_edit_name(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
         if cirurgy:
             self.edit_name.text_input("Nome da cirurgia", key="_change_cirugy_name",
@@ -896,7 +903,7 @@ class CirurgyView:
         else:
             self.edit_name.text_input("Nome da cirurgia", disabled=True)
 
-    def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=0):
+    def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=None):
         if cirurgies:
             with self.select_cirurgy:
                 st.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
@@ -1013,6 +1020,12 @@ class CirurgyControl:
         self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
         self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
         self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
+        self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
+
+    @staticmethod
+    def on_change_patient(logc: LogC):
+        name = st.session_state['_change_patient_name']
+        st.session_state['selected_cirurgy'].patient_name = name
 
     @staticmethod
     def on_change_name(logc: LogC):

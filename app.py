@@ -111,7 +111,7 @@ class ProfessionalView:
 
     @log_func
     @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_selection(self, professionals: list[str], on_change: Callable, logc: LogC, default=0) -> str:
+    def view_selection(self, professionals: list[str], on_change: Callable, logc: LogC, default=None) -> str:
         disable = True if not professionals else False
         if not disable:
             with self.professionals_selection:
@@ -160,7 +160,7 @@ class ProfessionalView:
 
 
 if 'selected_team_index' not in st.session_state:
-    st.session_state['selected_team_index'] = 0
+    st.session_state['selected_team_index'] = None
 
 if 'doctor_responsible_default' not in st.session_state:
     st.session_state['doctor_responsible_default'] = ""
@@ -258,10 +258,10 @@ class ProfessionalModel:
 
 
 if 'default_selected_professional_index' not in st.session_state:
-    st.session_state['default_selected_professional_index'] = 0
+    st.session_state['default_selected_professional_index'] = None
 
 if 'default_selected_team_index' not in st.session_state:
-    st.session_state['default_selected_team_index'] = 0
+    st.session_state['default_selected_team_index'] = None
 
 
 class ProfessionalControl:
@@ -371,7 +371,7 @@ class TeamView:
 
     @log_func
     @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_selection(self, teams: list[str], on_change: Callable, logc: LogC, default=0) -> str:
+    def view_selection(self, teams: list[str], on_change: Callable, logc: LogC, default=None) -> str:
         disable = True if not teams else False
         if not disable:
             with self.teams_selection:
@@ -671,7 +671,7 @@ if 'selected_room' not in st.session_state:
     st.session_state['selected_room'] = None
 
 if 'default_selected_room_index' not in st.session_state:
-    st.session_state['default_selected_room_index'] = 0
+    st.session_state['default_selected_room_index'] = None
 
 
 class RoomView:
@@ -713,7 +713,7 @@ class RoomView:
         self.scheduling.dataframe(scheduling, use_container_width=True)
 
     @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_selection(self, rooms: list[str], on_change: Callable, logc: LogC, default=0) -> str:
+    def view_selection(self, rooms: list[str], on_change: Callable, logc: LogC, default=None) -> str:
         disable = True if not rooms else False
         if not disable:
             with self.rooms_selection:

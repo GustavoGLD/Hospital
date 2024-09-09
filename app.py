@@ -37,51 +37,24 @@ if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__
 
 if __name__ == '__main__':
     with st.expander("Configurações", expanded=False):
-        dist, ord = st.tabs(["Distribuição", "Ordenação"])
-        with dist:
-            st.write("Distribuição das Cirurgias")
+        st.write("Distribuição das Cirurgias")
 
-            st.slider("1. Número de gerações", min_value=1, max_value=50, value=5, step=1, key="dist_num_generations")
-            st.slider("1. Solução por população", min_value=1, max_value=150, value=30, step=1, key="dist_sol_per_pop")
-            st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["dist_sol_per_pop"],
-                      value=5, step=1, key="dist_num_parents_mating")
+        st.slider("1. Número de gerações", min_value=1, max_value=500, value=100, step=1, key="num_generations")
+        st.slider("1. Solução por população", min_value=1, max_value=50, value=10, step=1, key="sol_per_pop")
+        st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["sol_per_pop"],
+                  value=9, step=1, key="num_parents_mating")
 
-            with st.container(border=True):
-                st.write("Configurações avançadas")
-                st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
-                             key="dist_crossover_type")
-                st.selectbox("1. Tipo de mutação", ["adaptive", "random"], key="dist_mutation_type")
-                st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
-                          key="dist_mutation_percent_genes")
-                st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"],
-                             key="dist_parent_selection_type")
-                st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['dist_sol_per_pop'],
-                          value=5, step=1, key="dist_keep_parents")
-
-        with ord:
-            st.write("Ordenação das Cirurgias")
-
-            st.checkbox("Ordem Simples", value=False, key="simple_order")
-
-            st.slider("2. Número de gerações", min_value=1, max_value=500, value=10, step=1,
-                      disabled=st.session_state['simple_order'], key="ord_num_generations")
-            st.slider("2. Solução por população", min_value=1, max_value=500, value=30, step=1,
-                      disabled=st.session_state['simple_order'], key="ord_sol_per_pop")
-            st.slider("2. Número de pais para cruzamento", min_value=1, max_value=st.session_state['ord_sol_per_pop'],
-                      value=15, step=1, disabled=st.session_state['simple_order'], key="ord_num_parents_mating")
-
-            with st.container(border=True):
-                st.write("Configurações avançadas")
-                st.selectbox("2. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
-                             disabled=st.session_state['simple_order'], key="ord_crossover_type")
-                st.selectbox("2. Tipo de mutação", ["adaptive", "random"], disabled=st.session_state['simple_order'],
-                             key="ord_mutation_type")
-                st.slider("2. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
-                          disabled=st.session_state['simple_order'], key="ord_mutation_percent_genes")
-                st.selectbox("2. Tipo de seleção de pais", ["sss", "tournament", "rank"],
-                             disabled=st.session_state['simple_order'], key="ord_parent_selection_type")
-                st.slider("2. Número de pais mantidos", min_value=1, max_value=st.session_state['ord_sol_per_pop'],
-                          value=5, step=1, disabled=st.session_state['simple_order'], key="ord_keep_parents")
+        with st.container(border=True):
+            st.write("Configurações avançadas")
+            st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
+                         key="crossover_type")
+            st.selectbox("1. Tipo de mutação", ["random", "adaptive"], key="mutation_type")
+            st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
+                      key="mutation_percent_genes")
+            st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"],
+                         key="parent_selection_type")
+            st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['sol_per_pop'],
+                      value=5, step=1, key="keep_parents")
 
     st.markdown('---')
 

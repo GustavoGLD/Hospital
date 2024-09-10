@@ -10,7 +10,7 @@ import jsbeautifier
 import pandas as pd
 import streamlit as st
 
-from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export
+from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export, DefaultConfig
 from difflib import SequenceMatcher
 
 
@@ -40,17 +40,17 @@ if __name__ == '__main__':
     with st.expander("Configurações", expanded=False):
         st.write("Distribuição das Cirurgias")
 
-        st.slider("1. Número de gerações", min_value=1, max_value=500, value=100, step=1, key="num_generations")
-        st.slider("1. Solução por população", min_value=1, max_value=50, value=10, step=1, key="sol_per_pop")
+        st.slider("1. Número de gerações", min_value=1, max_value=500, value=DefaultConfig.num_generations, step=1, key="num_generations")
+        st.slider("1. Solução por população", min_value=1, max_value=150, value=DefaultConfig.sol_per_pop, step=1, key="sol_per_pop")
         st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["sol_per_pop"],
-                  value=9, step=1, key="num_parents_mating")
+                  value=DefaultConfig.num_parents_mating, step=1, key="num_parents_mating")
 
         with st.container(border=True):
             st.write("Configurações avançadas")
             st.selectbox("1. Tipo de cruzamento", ["single_point", "uniform", "two_points", "scattered"],
                          key="crossover_type")
             st.selectbox("1. Tipo de mutação", ["random", "adaptive"], key="mutation_type")
-            st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
+            st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=DefaultConfig.mutation_percent_genes, step=1,
                       key="mutation_percent_genes")
             st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"], key="parent_selection_type")
             st.slider("1. Número de pais mantidos", min_value=-1, max_value=st.session_state['sol_per_pop'],

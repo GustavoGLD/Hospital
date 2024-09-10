@@ -10,6 +10,15 @@ import pygad
 import streamlit as st
 import time
 
+
+class DefaultConfig:
+    num_generations = 100
+    sol_per_pop = 100
+    num_parents_mating = 9
+    mutation_percent_genes = [5, 4]
+    keep_parents = -1
+
+
 if 'num_generations' not in st.session_state:
     st.session_state['num_generations'] = 100
 
@@ -333,7 +342,6 @@ class AnalisadorModel:
             self._historico.append({"punicao": punicao, "geracao": geracao})
 
 
-
 class AnalisadorView:
     def __init__(self, model: AnalisadorModel):
         pass
@@ -412,7 +420,7 @@ class Otimizador:
         # Executar o GA
         ga_instance.run()
 
-        #st.dataframe(self.analisador._historico)
+        st.dataframe(pd.DataFrame(self.analisador._historico).transpose())
 
         # Obter a melhor solução
         solution, solution_fitness, _ = ga_instance.best_solution()

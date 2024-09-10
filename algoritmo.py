@@ -324,9 +324,29 @@ def main1():
         #logger.success("Reiniciando o processo...")
 
 
+class AnalisadorModel:
+    def __init__(self):
+        self._historico: list[dict[str, float]] = []
+
+    def analise(self, punicao: int, geracao: int):
+        if not self._historico or punicao < min(self._historico, key=lambda x: x["punicao"])["punicao"]:
+            self._historico.append({"punicao": punicao, "geracao": geracao})
+
+
+
+class AnalisadorView:
+    def __init__(self, model: AnalisadorModel):
+        pass
+
+
+class AnalisadorController:
+    def __init__(self, model: AnalisadorModel, view: AnalisadorView):
+        pass
+
 class Otimizador:
     def __init__(self, mediador: Mediador, cirurgias: List[Cirurgia]):
         self.mediador = mediador
+        self.analisador = AnalisadorModel()
 
         cirurgias.sort(key=lambda cirurgia: cirurgia.duracao / cirurgia.punicao)
         self.cirurgias = cirurgias[:]
@@ -361,9 +381,7 @@ class Otimizador:
 
             # Calcular a punição total
             total_punicao = self.mediador.calcular_punicao()["punicao_total_geral"]
-            #logger.info(algoritmo.dados_tabela)
-
-            #logger.info(f"FitnesSolution: {solution}\tPontuação: {total_punicao}\tÍndice: {solution_idx}")
+            self.analisador.analise(total_punicao, ga_instance.generations_completed)
 
             # A função de aptidão retorna o negativo da punição para que o GA minimize a punição
             return -total_punicao
@@ -393,6 +411,8 @@ class Otimizador:
 
         # Executar o GA
         ga_instance.run()
+
+        #st.dataframe(self.analisador._historico)
 
         # Obter a melhor solução
         solution, solution_fitness, _ = ga_instance.best_solution()

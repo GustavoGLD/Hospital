@@ -35,6 +35,7 @@ if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__
     logger.add("loguru.log", level="TRACE", serialize=True)
     st.session_state['__defined_loguru_config__'] = True
 
+
 if __name__ == '__main__':
     with st.expander("Configurações", expanded=False):
         st.write("Distribuição das Cirurgias")
@@ -46,14 +47,13 @@ if __name__ == '__main__':
 
         with st.container(border=True):
             st.write("Configurações avançadas")
-            st.selectbox("1. Tipo de cruzamento", ["uniform", "single_point", "two_points", "scattered"],
+            st.selectbox("1. Tipo de cruzamento", ["single_point", "uniform", "two_points", "scattered"],
                          key="crossover_type")
             st.selectbox("1. Tipo de mutação", ["random", "adaptive"], key="mutation_type")
             st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=[5, 4], step=1,
                       key="mutation_percent_genes")
-            st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"],
-                         key="parent_selection_type")
-            st.slider("1. Número de pais mantidos", min_value=1, max_value=st.session_state['sol_per_pop'],
+            st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"], key="parent_selection_type")
+            st.slider("1. Número de pais mantidos", min_value=-1, max_value=st.session_state['sol_per_pop'],
                       value=5, step=1, key="keep_parents")
 
     st.markdown('---')

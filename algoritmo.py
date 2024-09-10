@@ -7,8 +7,32 @@ from loguru import logger
 from tabulate import tabulate
 from typing import List, Optional
 import pygad
-
+import streamlit as st
 import time
+
+if 'num_generations' not in st.session_state:
+    st.session_state['num_generations'] = 100
+
+if 'sol_per_pop' not in st.session_state:
+    st.session_state['sol_per_pop'] = 10
+
+if 'num_parents_mating' not in st.session_state:
+    st.session_state['num_parents_mating'] = 9
+
+if 'crossover_type' not in st.session_state:
+    st.session_state['crossover_type'] = "single_point"
+
+if 'mutation_type' not in st.session_state:
+    st.session_state['mutation_type'] = "random"
+
+if 'mutation_percent_genes' not in st.session_state:
+    st.session_state['mutation_percent_genes'] = [5, 4]
+
+if 'parent_selection_type' not in st.session_state:
+    st.session_state['parent_selection_type'] = "sss"
+
+if 'keep_parents' not in st.session_state:
+    st.session_state['keep_parents'] = -1
 
 
 class Equipe:
@@ -346,22 +370,25 @@ class Otimizador:
 
         return func
 
-    def otimizar_punicao(self, num_generations=100, num_parents_mating=9, sol_per_pop=10):
+    def otimizar_punicao(self):
         # Configuração dos parâmetros do GA
         gene_space_array = self.gene_space()
 
         ga_instance = pygad.GA(
-            num_generations=num_generations,
-            num_parents_mating=num_parents_mating,
-            sol_per_pop=sol_per_pop,
+            num_generations=st.session_state["num_generations"],
+            num_parents_mating=st.session_state["num_parents_mating"],
+            sol_per_pop=st.session_state["sol_per_pop"],
             num_genes=len(self.cirurgias),
             gene_space=gene_space_array,
             fitness_func=self.fitness_func(),
             random_mutation_min_val=-3,
             random_mutation_max_val=3,
-            #mutation_percent_genes=100,
-            mutation_type="random",
+            #mutation_percent_genes=st.session_state["mutation_percent_genes"],
+            mutation_type=st.session_state["mutation_type"],
             gene_type=int,
+            parent_selection_type=st.session_state["parent_selection_type"],
+            keep_parents=st.session_state["keep_parents"],
+            crossover_type=st.session_state["crossover_type"]
         )
 
         # Executar o GA

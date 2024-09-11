@@ -13,6 +13,8 @@ import streamlit as st
 from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export, DefaultConfig
 from difflib import SequenceMatcher
 
+from utils.borg import BorgObj, Default
+
 
 def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
@@ -132,8 +134,13 @@ class ProfessionalView:
         )
 
 
-if 'selected_team_index' not in st.session_state:
-    st.session_state['selected_team_index'] = None
+class SharedTeamState:
+    select_team_index = BorgObj('selected_team_index', int)
+    default_selected_index = BorgObj('default_selected_team_index', int)
+
+
+SharedTeamState.select_team_index = Default(None)
+SharedTeamState.default_selected_index = Default(None)
 
 if 'doctor_responsible_default' not in st.session_state:
     st.session_state['doctor_responsible_default'] = ""
@@ -232,9 +239,6 @@ class ProfessionalModel:
 
 if 'default_selected_professional_index' not in st.session_state:
     st.session_state['default_selected_professional_index'] = None
-
-if 'default_selected_team_index' not in st.session_state:
-    st.session_state['default_selected_team_index'] = None
 
 
 class ProfessionalControl:
@@ -605,7 +609,7 @@ class TeamControl:
         if selected_name in Data.get_teams_names():
             team_view.view_add_error_duplicate(logc=logc)
         else:
-            st.session_state['default_selected_team_index'] = len(
+            SharedTeamState.default_selected_index.value = len(
                 list(Data.get_dict()['teams'].keys())
             )
             TeamModel(name=selected_name, professionals=[], doctor_responsible=None)
@@ -618,7 +622,7 @@ class TeamControl:
 
         selected_name = self.team_view.view_selection(Data.get_teams_names(),
                                                       self.on_change_team,
-                                                      default=st.session_state['default_selected_team_index'],
+                                                      default=SharedTeamState.default_selected_index.value,
                                                       logc=logc)
         logger.debug(selected_name)
         if selected_name:

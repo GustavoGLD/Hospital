@@ -134,13 +134,13 @@ class ProfessionalView:
         )
 
 
-class SharedTeamState:
-    select_team_index = BorgObj('selected_team_index', int)
-    default_selected_index = BorgObj('default_selected_team_index', int)
+class SharedProfessionalState:
+    select_index = BorgObj('selected_professional_index', int)
+    default_selected_index = BorgObj('default_selected_professional_index', int)
 
 
-SharedTeamState.select_team_index = Default(None)
-SharedTeamState.default_selected_index = Default(None)
+SharedProfessionalState.select_index = Default(None)
+SharedProfessionalState.default_selected_index = Default(None)
 
 if 'doctor_responsible_default' not in st.session_state:
     st.session_state['doctor_responsible_default'] = ""
@@ -237,10 +237,6 @@ class ProfessionalModel:
         return self.__dict__
 
 
-if 'default_selected_professional_index' not in st.session_state:
-    st.session_state['default_selected_professional_index'] = None
-
-
 class ProfessionalControl:
     def __init__(self, logc: LogC):
         self.professional_view = ProfessionalView(st.container(border=True))
@@ -267,7 +263,7 @@ class ProfessionalControl:
         selected_name = self.professional_view.view_selection(
             ProfessionalModel.get_names_with_id(),
             on_change=self.on_change_professional,
-            default=st.session_state['default_selected_professional_index'],
+            default=SharedProfessionalState.default_selected_index.value,
             logc=logc
         )
 
@@ -286,7 +282,7 @@ class ProfessionalControl:
         if selected_name in ProfessionalModel.professionals:
             professional_view.view_add_error_duplicate(logc=logc)
         else:
-            st.session_state['default_selected_professional_index'] = len(
+            SharedProfessionalState.default_selected_index.value = len(
                 list(Data.get_dict()['professionals'].keys())
             )
             ProfessionalModel(name=selected_name)
@@ -310,6 +306,18 @@ class ProfessionalControl:
         teams = [TeamModel.get_by_name(team) for team in teams_str]
         # logger.debug(f"{teams=}")
         st.session_state['selected_professional'].vteams = teams
+
+
+class SharedTeamState:
+    select_index = BorgObj('selected_team_index', int)
+    default_selected_index = BorgObj('default_selected_team_index', int)
+    pre_selected = BorgObj('_selected_team', str)
+    selected = BorgObj('selected_team', Equipe)
+    new_name = BorgObj('_new_team_name', str)
+
+
+SharedTeamState.select_index = Default(None)
+SharedTeamState.default_selected_index = Default(None)
 
 
 class TeamView:
@@ -352,9 +360,9 @@ class TeamView:
         disable = True if not teams else False
         if not disable:
             with self.teams_selection:
-                st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change, key="_selected_team",
-                             disabled=disable)
-                return st.session_state['_selected_team']
+                st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change,
+                             key=SharedTeamState.pre_selected.key, disabled=disable)
+                return SharedTeamState.pre_selected.value
         else:
             with self.teams_selection:
                 st.selectbox("Selecione uma equipe", teams, disabled=disable)
@@ -363,7 +371,8 @@ class TeamView:
     @log_func
     @MyLogger.decorate_function(add_extra=["TeamsView"])
     def view_new_team_name(self, logc: LogC) -> str:
-        return self.new_team_name.text_input("Nome da nova equipe", label_visibility="collapsed", key="_new_team_name")
+        return self.new_team_name.text_input("Nome da nova equipe", label_visibility="collapsed",
+                                             key=SharedTeamState.new_name.key)
 
     @log_func
     @MyLogger.decorate_function(add_extra=["TeamsView"])
@@ -378,7 +387,7 @@ class TeamView:
     @MyLogger.decorate_function(add_extra=["TeamsView"])
     def view_doctor_responsible(self, on_change: Callable, doctor: "ProfessionalModel", team: "TeamModel",
                                 logc: LogC) -> None:
-        disable = True if not st.session_state['selected_team'] else False
+        disable = True if not SharedTeamState.selected.value else False
         options = [f"{prof.name} - {prof.id}" for prof in team] if team else []
         # logger.debug(f"{doctor.name if doctor else None}", **logc)
         if not disable:
@@ -400,7 +409,7 @@ class TeamView:
 
     @MyLogger.decorate_function(add_extra=["TeamsView"])
     def view_profissionals(self, selecteds: list[str], options: list, on_change: Callable, logc: LogC):
-        disable = True if not st.session_state['selected_team'] else False
+        disable = True if not SharedTeamState.selected.value else False
         self.profissionals.multiselect(
             "Selecione os profissionais",
             options,
@@ -543,10 +552,10 @@ class TeamControl:
     def __init__(self, logc: LogC = None):
         self.team_view = TeamView(st.container(border=True))
 
-        st.session_state['selected_team']: TeamModel = self.select_team(logc=logc)
-        logger.debug(st.session_state['selected_team'])
+        SharedTeamState.selected.value = self.select_team(logc=logc)
+        logger.debug(SharedTeamState.selected.value)
 
-        selected_team: TeamModel = st.session_state['selected_team']
+        selected_team = SharedTeamState.selected.value
 
         self.team_view.view_profissionals(
             selected_team.get_professionals_names_with_id() if selected_team else [],
@@ -559,7 +568,7 @@ class TeamControl:
         self.team_view.view_doctor_responsible(
             on_change=self.on_change_responsible,
             doctor=st.session_state['doctor_responsible_default'],
-            team=st.session_state['selected_team'],
+            team=SharedTeamState.selected.value,
             logc=logc
         )
 
@@ -567,7 +576,7 @@ class TeamControl:
 
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
     def make_scheduling(self, logc: LogC):
-        team = st.session_state['selected_team']
+        team = SharedTeamState.selected.value
         if not team:
             return
         scheduling = {"horarios": [], "sala": [], "cirurgia": [], "duracao": [], "paciente": []}
@@ -583,14 +592,14 @@ class TeamControl:
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
     def on_change_responsible(logc: LogC):
         id = int(st.session_state['_doctor_responsible'].split(" - ")[1])
-        st.session_state['selected_team'].set_doctor_responsible(id)
+        SharedTeamState.selected.value.set_doctor_responsible(id)
         st.session_state['doctor_responsible_default'] = ProfessionalModel.get_by_id(id)
         # logger.debug(f"{st.session_state['doctor_responsible_default'].name=}", **logc)
 
     @staticmethod
     def on_change_team():
         st.session_state['doctor_responsible_default'] = \
-            Data.get_team_by_name(st.session_state['_selected_team']).doctor_responsible
+            Data.get_team_by_name(SharedTeamState.pre_selected.value).doctor_responsible
 
     @staticmethod
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
@@ -598,12 +607,12 @@ class TeamControl:
         professionals_str: list[str] = st.session_state['_profissionals']
         professionals = [ProfessionalModel.get_by_id(int(professional.split(" - ")[1])) for professional in
                          professionals_str]
-        st.session_state['selected_team'].vprofessionals = professionals
+        SharedTeamState.selected.value.vprofessionals = professionals
 
     @staticmethod
     @MyLogger.decorate_function(add_extra=["TeamsControl"])
     def on_click_add_team(team_view: TeamView, logc: LogC):
-        selected_name: str = st.session_state['_new_team_name']
+        selected_name: str = SharedTeamState.new_name.value
         assert selected_name is not None and isinstance(selected_name, str)
 
         if selected_name in Data.get_teams_names():

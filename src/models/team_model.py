@@ -1,5 +1,11 @@
 from pydantic import BaseModel
+from typing import List
 
 
-class Team(BaseModel):
+class TeamModel(BaseModel):
     id: int
+    nome: str
+    profissionais: List["ProfessionalModel"]
+    medico_responsavel: "ProfessionalModel"
+
+

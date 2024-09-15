@@ -1,7 +1,8 @@
 from pydantic import BaseModel
+from typing import List
 
 
-class Room(BaseModel):
-    id: int
-    name: str
-    cirurgies: str
+class RoomModel(BaseModel):
+    nome: str
+    cirurgias: List['CirurgyModel']
+

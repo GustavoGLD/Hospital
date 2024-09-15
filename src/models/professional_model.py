@@ -1,6 +1,11 @@
 from pydantic import BaseModel
+from typing import List
 
 
-class Professional(BaseModel):
+class ProfessionalModel(BaseModel):
     id: int
-    name: str
+    nome: str
+    times: List["TeamModel"]
+    times_responsavel: List["TeamModel"]
+
+

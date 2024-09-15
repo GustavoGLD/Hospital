@@ -446,7 +446,7 @@ import streamlit as st
 
 def testar_algoritmo():
     print('iniciando')
-    from app import Data
+    from src import Data
 
     if not Data.get_cirurgies():
         filepath = "data/data_teste_2.json"

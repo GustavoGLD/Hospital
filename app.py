@@ -1,16 +1,15 @@
 import copy
 import json
 import os
-import sys
 import time
 from collections import defaultdict
-from typing import Callable, TypedDict, Union, Any, Type, Generic, TypeVar
+from typing import Callable, Union
 
 import jsbeautifier
 import pandas as pd
 import streamlit as st
 
-from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, Export, DefaultConfig
+from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, DefaultConfig
 from difflib import SequenceMatcher
 
 
@@ -26,10 +25,9 @@ if __name__ == '__main__':
     )
 
 from loguru import logger
-from streamlit.delta_generator import DeltaGenerator
 
-from gulogger import MyLogger, log_func
-from gulogger.logcontext import LogC
+from src.utils import MyLogger, log_func
+from src.utils.gulogger.logcontext import LogC
 
 if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__':
     logger.add("loguru.log", level="TRACE", serialize=True)

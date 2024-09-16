@@ -1,10 +1,8 @@
-from pydantic import BaseModel
+from src.models.generic_model import GenericModel
 from typing import List
 
 
-class ProfessionalModel(BaseModel):
-    id: int
-    nome: str
+class ProfessionalModel(GenericModel):
     times: List["TeamModel"]
     times_responsavel: List["TeamModel"]
 

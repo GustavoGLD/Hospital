@@ -79,13 +79,13 @@ class TeamView:
     def view_doctor_responsible(self, on_change: Callable, doctor: "ProfessionalModel", team: "TeamModel",
                                 logc: LogC) -> None:
         disable = True if not st.session_state['selected_team'] else False
-        options = [f"{prof.name} - {prof.id}" for prof in team] if team else []
+        options = [f"{prof.value} - {prof.value}" for prof in team] if team else []
         # logger.debug(f"{doctor.name if doctor else None}", **logc)
         if not disable:
             self.doctor_responsible.selectbox(
                 "Médico responsável",
                 options=options,
-                index=options.index(f"{doctor.name} - {doctor.id}") if doctor else 0,
+                index=options.index(f"{doctor.value} - {doctor.value}") if doctor else 0,
                 key=TeamView._doctor_responsible.key,
                 on_change=on_change,
                 disabled=disable,

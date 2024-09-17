@@ -1,4 +1,5 @@
 from src.models.cirurgy_model import CirurgyModel
+from src.models.generic_model import GenericModel
 from src.models.room_model import RoomModel
 from src.models.team_model import TeamModel
 from src.models.professional_model import ProfessionalModel

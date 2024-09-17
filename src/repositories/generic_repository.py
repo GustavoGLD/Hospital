@@ -26,16 +26,16 @@ class GenericRepository(Generic[T]):
         return self.models
 
     def get_names(self) -> list[str]:
-        return [model.name for model in self.models]
+        return [model.value for model in self.models]
     
     def get_by_id(self, _id: int | str) -> T | None:
-        return next((model for model in self.models if int(model.id) == int(_id)), None)
+        return next((model for model in self.models if int(model.value) == int(_id)), None)
 
     def get_by_name(self, name: str) -> T | None:
-        return next((model for model in self.models if model.name == name), None)
+        return next((model for model in self.models if model.value == name), None)
 
     def get_names_and_ids(self) -> list[str]:
-        return [f"{model.name} - {model.id}" for model in self.models]
+        return [f"{model.value} - {model.value}" for model in self.models]
 
     def get_id_by_names_with_ids(self, teams_ids: list[int]) -> list[str]:
         return [f"{self.get_by_id(team_id).name} - {team_id}" for team_id in teams_ids]

@@ -17,7 +17,6 @@ class CirurgyView:
     _change_cirugy_name = BorgObj("_change_cirugy_name", str)
     _selected_cirurgy_name = BorgObj("_selected_cirurgy_name", str)
 
-
     def __init__(self, cntr=st):
         cntr.write("Cirurgias 💉")
 

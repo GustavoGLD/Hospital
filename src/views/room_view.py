@@ -2,11 +2,13 @@ from typing import Callable
 
 import streamlit as st
 
+from src.models import RoomModel
 from src.utils.borg import BorgObj
 from src.utils.gulogger.logcontext import MyLogger, LogC
 
 
 class RoomView:
+    selected_room = BorgObj("selected_room", RoomModel)
     _selected_room = BorgObj("_selected_room", str)
     _new_room_name = BorgObj("_new_room_name", str)
     _new_rooms_count = BorgObj("_new_rooms_count", int)

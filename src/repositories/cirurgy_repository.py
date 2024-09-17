@@ -1,7 +1,7 @@
-from src.models import CirurgyModel
+from src.entities import CirurgyEntity
 from src.repositories.generic_repository import GenericRepository
 
 
-class CirurgyRepository(GenericRepository[CirurgyModel]):
-    def __init__(self, models: list[CirurgyModel] = None):
-        super().__init__(models=models)
+class CirurgyRepository(GenericRepository[CirurgyEntity]):
+    def __init__(self, entity_list: list[CirurgyEntity] = None):
+        super().__init__(entity_list=entity_list)

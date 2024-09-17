@@ -1,41 +1,41 @@
 from ctypes import Union
 from typing import TypeVar, Generic
 
-from src.models.generic_model import GenericModel
+from src.entities.generic_entity import GenericEntity
 
-T = TypeVar("T", bound=GenericModel)
+T = TypeVar("T", bound=GenericEntity)
 
 
 class GenericRepository(Generic[T]):
-    def __init__(self, models: list[T] = None):
+    def __init__(self, entity_list: list[T] = None):
         self._id_counter = 0
-        self.models = []
+        self.repository = []
 
-        self.add_all(models if models is not None else [])
+        self.add_all(entity_list if entity_list is not None else [])
 
     def add(self, model: T):
         model.id = self._id_counter
         self._id_counter += 1
-        self.models.append(model)
+        self.repository.append(model)
 
     def add_all(self, models: list[T]):
         for model in models:
             self.add(model)
 
-    def get_models(self) -> list[T]:
-        return self.models
+    def get_all(self) -> list[T]:
+        return self.repository
 
     def get_names(self) -> list[str]:
-        return [model.value for model in self.models]
+        return [unity.value for unity in self.repository]
     
     def get_by_id(self, _id: int | str) -> T | None:
-        return next((model for model in self.models if int(model.value) == int(_id)), None)
+        return next((model for model in self.repository if int(model.value) == int(_id)), None)
 
     def get_by_name(self, name: str) -> T | None:
-        return next((model for model in self.models if model.value == name), None)
+        return next((model for model in self.repository if model.value == name), None)
 
     def get_names_and_ids(self) -> list[str]:
-        return [f"{model.value} - {model.value}" for model in self.models]
+        return [f"{model.value} - {model.value}" for model in self.repository]
 
     def get_id_by_names_with_ids(self, teams_ids: list[int]) -> list[str]:
         return [f"{self.get_by_id(team_id).name} - {team_id}" for team_id in teams_ids]

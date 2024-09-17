@@ -1,7 +1,7 @@
-from src.models import TeamModel
+from src.entities import TeamEntity
 from src.repositories.generic_repository import GenericRepository
 
 
-class TeamRepository(GenericRepository[TeamModel]):
-    def __init__(self, models: list[TeamModel] = None):
-        super().__init__(models=models)
+class TeamRepository(GenericRepository[TeamEntity]):
+    def __init__(self, entity_list: list[TeamEntity] = None):
+        super().__init__(entity_list=entity_list)

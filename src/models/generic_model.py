@@ -8,4 +8,4 @@ from src.objects.name_obj import NameObj
 
 class GenericModel(BaseModel):
     id: Optional[IdObj] = Field(default=IdObj())
-    nome: NameObj = Field(default=NameObj())
+    name: NameObj = Field(default=NameObj())

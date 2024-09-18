@@ -2,6 +2,7 @@ from ctypes import Union
 from typing import TypeVar, Generic
 
 from src.entities.generic_entity import GenericEntity
+from src.objects import IdObj
 
 T = TypeVar("T", bound=GenericEntity)
 
@@ -14,7 +15,7 @@ class GenericRepository(Generic[T]):
         self.add_all(entity_list if entity_list is not None else [])
 
     def add(self, model: T):
-        model.id = self._id_counter
+        model.id = IdObj(value=self._id_counter)
         self._id_counter += 1
         self.repository.append(model)
 
@@ -29,10 +30,10 @@ class GenericRepository(Generic[T]):
         return [unity.value for unity in self.repository]
     
     def get_by_id(self, _id: int | str) -> T | None:
-        return next((model for model in self.repository if int(model.value) == int(_id)), None)
+        return next((model for model in self.repository if int(model.id.value) == int(_id)), None)
 
     def get_by_name(self, name: str) -> T | None:
-        return next((model for model in self.repository if model.value == name), None)
+        return next((entity for entity in self.repository if entity.model.name.value == name), None)
 
     def get_names_and_ids(self) -> list[str]:
         return [f"{model.value} - {model.value}" for model in self.repository]

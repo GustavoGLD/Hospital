@@ -20,11 +20,11 @@ def test_generic_model_custom_data():
     custom_name = NameObj(value="Cirurgia Teste")
 
     # Instancia o GenericModel com dados personalizados
-    generic_model = GenericModel(id=custom_id, nome=custom_name)
+    generic_model = GenericModel(id=custom_id, name=custom_name)
 
     # Verifica se os dados estão corretos
     assert generic_model.id.value == 10
-    assert generic_model.nome.value == "Cirurgia Teste"
+    assert generic_model.name.value == "Cirurgia Teste"
 
     print(generic_model.model_dump())
 

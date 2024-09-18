@@ -19,5 +19,6 @@ https://trello.com/b/YArhBznk/siscof-hospital
 ----
 Arquitetura:
 
-![image](https://github.com/user-attachments/assets/1ce89cd2-deee-4b71-b6fa-d81dadb132eb)
+![image](https://github.com/user-attachments/assets/1465bce5-78aa-49f0-98f7-41fa39428ee9)
+
 

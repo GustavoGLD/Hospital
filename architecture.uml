@@ -164,15 +164,19 @@ package "Lógica Interna" {
     }
 
     class RoomRepository {
+        - rooms_list
     }
 
     class CirurgyRepository {
+        - cirurgies_list
     }
 
     class ProfessionalRepository {
+        - professionals_list
     }
 
     class TeamRepository {
+        - teams_list
     }
   }
 }

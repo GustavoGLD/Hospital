@@ -32,14 +32,14 @@ def test_generic_model_custom_data():
 def test_cirurgy_model_custom_data():
     # Cria dados personalizados
     punicao_custom = PunishmentObj(value=5)
-    equipes_ids_custom = [IdObj(value=1), IdObj(value=2)]
+    equipe_id_custom = IdObj(value=1)
     tempo_inicio_custom = TimeObj(start=100)
     sala_id_custom = IdObj(value=42)
 
     # Instancia o CirurgyModel com dados personalizados
     cirurgy_model = CirurgyModel(
         punicao=punicao_custom,
-        equipes_ids=equipes_ids_custom,
+        equipe_id=equipe_id_custom,
         equipes_possiveis_ids=[IdObj(value=3), IdObj(value=4)],
         tempo_inicio=tempo_inicio_custom,
         sala_id=sala_id_custom
@@ -47,8 +47,7 @@ def test_cirurgy_model_custom_data():
 
     # Verifica se os dados estão corretos
     assert cirurgy_model.punicao.value == 5
-    assert len(cirurgy_model.equipes_ids) == 2
-    assert cirurgy_model.equipes_ids[0].value == 1
+    assert cirurgy_model.equipe_id.value == 1
     assert cirurgy_model.equipes_possiveis_ids[1].value == 4
     assert cirurgy_model.tempo_inicio.start == 100
     assert cirurgy_model.sala_id.value == 42

@@ -10,7 +10,7 @@ from src.objects.punishment_obj import PunishmentObj
 
 class CirurgyModel(GenericModel):
     punicao: PunishmentObj = Field(default=PunishmentObj())
-    equipes_ids: list[IdObj] = Field(default=[])
+    equipe_id: IdObj = Field(default=IdObj())
     equipes_possiveis_ids: list[IdObj] = Field(default=[])
     tempo_inicio: Optional[TimeObj] = Field(default=TimeObj())
     sala_id: IdObj = Field(default=IdObj())

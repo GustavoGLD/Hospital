@@ -7,4 +7,4 @@ T = TypeVar("T", bound=GenericModel)
 
 class GenericEntity(Generic[T]):
     def __init__(self, model: T):
-        self.model = model
+        self._model = model

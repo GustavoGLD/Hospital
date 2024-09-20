@@ -6,12 +6,12 @@ current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda:0)))
 sys.path.insert(0, current_dir[:current_dir.rfind(os.path.sep)])
 
 import pytest
-from src.models.cirurgy_model import CirurgyModel
-from src.models.generic_model import GenericModel
-from src.models.room_model import RoomModel
-from src.models.team_model import TeamModel
-from src.models.professional_model import ProfessionalModel
-from src.objects import IdObj, TimeObj, PunishmentObj, NameObj
+from src.backend.models.cirurgy_model import CirurgyModel
+from src.backend.models.generic_model import GenericModel
+from src.backend.models import RoomModel
+from src.backend.models.team_model import TeamModel
+from src.backend.models import ProfessionalModel
+from src.backend.objects import IdObj, TimeObj, PunishmentObj, NameObj
 
 
 def test_generic_model_custom_data():

@@ -1,9 +1,7 @@
-from ctypes import Union
 from typing import TypeVar, Generic
 
-from src.entities.generic_entity import GenericEntity
-from src.models import GenericModel
-from src.objects import IdObj
+from src.backend.entities.generic_entity import GenericEntity
+from src.backend.models import GenericModel
 
 T = TypeVar("T", bound=GenericEntity[GenericModel])
 

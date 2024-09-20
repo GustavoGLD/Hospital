@@ -2,9 +2,8 @@ from typing import Callable, Union
 
 import streamlit as st
 
-from src.models import CirurgyModel
+from src.backend.models import CirurgyModel
 from src.utils.borg import BorgObj
-from src.utils.gulogger.log_func import log_func
 from src.utils.gulogger.logcontext import MyLogger, LogC
 
 

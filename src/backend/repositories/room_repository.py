@@ -1,5 +1,5 @@
-from src.entities import RoomEntity
-from src.repositories.generic_repository import GenericRepository
+from src.backend.entities import RoomEntity
+from src.backend.repositories.generic_repository import GenericRepository
 
 
 class RoomRepository(GenericRepository[RoomEntity]):

@@ -1,11 +1,11 @@
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from src.models.generic_model import GenericModel
-from src.objects import TimeObj
-from src.objects.id_obj import IdObj
-from src.objects.punishment_obj import PunishmentObj
+from src.backend.models.generic_model import GenericModel
+from src.backend.objects import TimeObj
+from src.backend.objects.id_obj import IdObj
+from src.backend.objects.punishment_obj import PunishmentObj
 
 
 class CirurgyModel(GenericModel):

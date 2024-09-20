@@ -1,5 +1,5 @@
-from src.entities import CirurgyEntity
-from src.repositories.generic_repository import GenericRepository
+from src.backend.entities import CirurgyEntity
+from src.backend.repositories.generic_repository import GenericRepository
 
 
 class CirurgyRepository(GenericRepository[CirurgyEntity]):

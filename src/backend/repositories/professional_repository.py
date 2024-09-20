@@ -1,5 +1,5 @@
-from src.entities import ProfessionalEntity
-from src.repositories.generic_repository import GenericRepository
+from src.backend.entities import ProfessionalEntity
+from src.backend.repositories.generic_repository import GenericRepository
 
 
 class ProfessionalRepository(GenericRepository[ProfessionalEntity]):

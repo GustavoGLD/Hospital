@@ -1,5 +1,5 @@
-from src.entities.generic_entity import GenericEntity
-from src.models import RoomModel, CirurgyModel
+from src.backend.entities.generic_entity import GenericEntity
+from src.backend.models import RoomModel, CirurgyModel
 
 
 class RoomEntity(GenericEntity[RoomModel]):

@@ -7,18 +7,18 @@ current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda:0)))
 sys.path.insert(0, current_dir[:current_dir.rfind(os.path.sep)])
 
 import unittest
-from src.models.cirurgy_model import CirurgyModel
-from src.models.professional_model import ProfessionalModel
-from src.models.room_model import RoomModel
-from src.models.team_model import TeamModel
-from src.objects.id_obj import IdObj
-from src.objects.time_obj import TimeObj
-from src.objects.punishment_obj import PunishmentObj
-from src.entities.cirurgy_entity import CirurgyEntity
-from src.entities.professional_entity import ProfessionalEntity
-from src.entities.room_entity import RoomEntity
-from src.entities.team_entity import TeamEntity
-from src.objects import NameObj
+from src.backend.models.cirurgy_model import CirurgyModel
+from src.backend.models import ProfessionalModel
+from src.backend.models import RoomModel
+from src.backend.models.team_model import TeamModel
+from src.backend.objects import IdObj
+from src.backend.objects import TimeObj
+from src.backend.objects import PunishmentObj
+from src.backend.entities.cirurgy_entity import CirurgyEntity
+from src.backend.entities.professional_entity import ProfessionalEntity
+from src.backend.entities.room_entity import RoomEntity
+from src.backend.entities import TeamEntity
+from src.backend.objects import NameObj
 
 
 class TestEntities(unittest.TestCase):

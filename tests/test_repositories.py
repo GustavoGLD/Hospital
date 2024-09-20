@@ -7,13 +7,13 @@ current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda:0)))
 sys.path.insert(0, current_dir[:current_dir.rfind(os.path.sep)])
 
 import unittest
-from src.repositories.cirurgy_repository import CirurgyRepository
-from src.repositories.professional_repository import ProfessionalRepository
-from src.repositories.room_repository import RoomRepository
-from src.repositories.team_repository import TeamRepository
-from src.entities import CirurgyEntity, ProfessionalEntity, RoomEntity, TeamEntity
-from src.models import CirurgyModel, ProfessionalModel, RoomModel, TeamModel
-from src.objects import NameObj
+from src.backend.repositories.cirurgy_repository import CirurgyRepository
+from src.backend.repositories.professional_repository import ProfessionalRepository
+from src.backend.repositories.room_repository import RoomRepository
+from src.backend.repositories.team_repository import TeamRepository
+from src.backend.entities import CirurgyEntity, ProfessionalEntity, RoomEntity, TeamEntity
+from src.backend.models import CirurgyModel, ProfessionalModel, RoomModel, TeamModel
+from src.backend.objects import NameObj
 
 
 class TestRepositories(unittest.TestCase):

@@ -1,5 +1,5 @@
-from src.entities.generic_entity import GenericEntity
-from src.models import TeamModel, ProfessionalModel
+from src.backend.entities.generic_entity import GenericEntity
+from src.backend.models import TeamModel, ProfessionalModel
 
 
 class TeamEntity(GenericEntity[TeamModel]):

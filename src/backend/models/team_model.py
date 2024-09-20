@@ -1,9 +1,9 @@
 from pydantic import Field
 
-from src.models.generic_model import GenericModel
+from src.backend.models.generic_model import GenericModel
 from typing import List, Optional
 
-from src.objects import IdObj
+from src.backend.objects import IdObj
 
 
 class TeamModel(GenericModel):

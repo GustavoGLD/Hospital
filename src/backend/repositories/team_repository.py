@@ -1,5 +1,5 @@
-from src.entities import TeamEntity
-from src.repositories.generic_repository import GenericRepository
+from src.backend.entities import TeamEntity
+from src.backend.repositories.generic_repository import GenericRepository
 
 
 class TeamRepository(GenericRepository[TeamEntity]):

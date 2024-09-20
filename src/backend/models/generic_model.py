@@ -2,8 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from src.objects import IdObj
-from src.objects.name_obj import NameObj
+from src.backend.objects import IdObj
+from src.backend.objects.name_obj import NameObj
 
 
 class GenericModel(BaseModel):

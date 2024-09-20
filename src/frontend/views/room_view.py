@@ -2,7 +2,7 @@ from typing import Callable
 
 import streamlit as st
 
-from src.models import RoomModel
+from src.backend.models import RoomModel
 from src.utils.borg import BorgObj
 from src.utils.gulogger.logcontext import MyLogger, LogC
 

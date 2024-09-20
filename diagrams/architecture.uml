@@ -33,7 +33,6 @@ package "Streamlit e Interface de Usuário" {
       + view_add_professional_button()
       + view_add_error_duplicate()
       + view_professional_teams()
-
     }
 
     class TeamView {
@@ -43,7 +42,7 @@ package "Streamlit e Interface de Usuário" {
       + view_add_team_button()
       + view_add_error_duplicate()
       + view_doctor_responsible()
-      + view_profissionals()
+      + view_professionals()
     }
   }
 
@@ -86,6 +85,7 @@ package "Streamlit e Interface de Usuário" {
     }
   }
 }
+
 package "Lógica Interna" {
   package "Models (Dados)" {
     class RoomModel {
@@ -208,12 +208,22 @@ package "Services (Lógica)" {
   }
 }
 
+class BorgObj {
+  + session_state
+  + update_state()
+}
+
+note left of BorgObj
+  Adaptador e Wrapper para
+  o streamlit.session_state
+  (Shared Data Pattern)
+end note
+
 ' Connections between layers
 RoomController --> RoomView: invoca
 CirurgyController --> CirurgyView: invoca
 ProfessionalController --> ProfessionalView: invoca
 TeamController --> TeamView: invoca
-
 
 RoomModel --> RoomEntity : converte
 CirurgyModel --> CirurgyEntity : converte
@@ -237,5 +247,11 @@ TeamRepository --> Mediador
 
 Mediador --> Algoritmo : Usa
 Algoritmo --> Otimizador : consulta
+
+' Connection between BorgObj and Views
+RoomView <-- BorgObj
+CirurgyView <-- BorgObj
+ProfessionalView <-- BorgObj
+TeamView <-- BorgObj
 
 @enduml

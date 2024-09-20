@@ -1,0 +1,56 @@
+@startuml
+
+' O arquivo JSON que serve como fonte de dados
+entity "Arquivo JSON" as JSON_File {
+  + dados: json
+}
+
+class DataModel {
+  + cirurgias: List
+  + profissionais: List
+  + salas: List
+  + equipes: List
+
+  + load_from_json(json_data: json): void
+}
+
+' DataService que coordena a carga e o acesso aos repositórios
+class DataService {
+  - cirurgy_repository: CirurgyRepository
+  - professional_repository: ProfessionalRepository
+  - room_repository: RoomRepository
+  - team_repository: TeamRepository
+  --
+  + load_data(): void
+  + get_cirurgy_repository(): CirurgyRepository
+  + get_professional_repository(): ProfessionalRepository
+  + get_room_repository(): RoomRepository
+  + get_team_repository(): TeamRepository
+}
+
+' Repositórios de diferentes entidades
+class CirurgyRepository {
+  + get_all(): List<CirurgyModel>
+}
+
+class ProfessionalRepository {
+  + get_all(): List<ProfessionalModel>
+}
+
+class RoomRepository {
+  + get_all(): List<RoomModel>
+}
+
+class TeamRepository {
+  + get_all(): List<TeamModel>
+}
+
+' Relacionamentos e fluxo de dados
+JSON_File --> DataModel : "Carrega dados do arquivo JSON para um Model"
+' DataModel --> DataService : "Inicializa com os dados processados"
+DataModel --> CirurgyRepository
+DataModel --> ProfessionalRepository  : "Inicializa os Repositórios"
+DataModel --> RoomRepository
+DataModel --> TeamRepository
+
+@enduml

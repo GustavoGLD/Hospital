@@ -1,6 +1,6 @@
 from typing import TypeVar, Generic
 
-from src.backend.models import GenericModel
+from src.backend.models.generic_model import GenericModel
 
 T = TypeVar("T", bound=GenericModel)
 

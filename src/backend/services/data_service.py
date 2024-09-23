@@ -22,10 +22,10 @@ from src.backend.repositories import (
 class DataService:
     def __init__(self, json_path: str):
         self.json_path = json_path
-        self.cirurgy_repository = None
-        self.professional_repository = None
-        self.room_repository = None
-        self.team_repository = None
+        self.cirurgy_repository: CirurgyRepository | None = None
+        self.professional_repository: ProfessionalRepository | None = None
+        self.room_repository: RoomRepository | None = None
+        self.team_repository: TeamRepository | None = None
 
     def load_data(self):
         """Carrega os dados do arquivo JSON e inicializa os repositórios."""
@@ -33,10 +33,10 @@ class DataService:
             data = json.load(f)
 
         # Carregar os repositórios com os dados do JSON
-        self.cirurgy_repository = self._load_cirurgy_repository(data['cirurgias'])
-        self.professional_repository = self._load_professional_repository(data['profissionais'])
-        self.room_repository = self._load_room_repository(data['salas'])
-        self.team_repository = self._load_team_repository(data['equipes'])
+        self.cirurgy_repository = self._load_cirurgy_repository(data['cirurgies'])
+        self.professional_repository = self._load_professional_repository(data['professionals'])
+        self.room_repository = self._load_room_repository(data['rooms'])
+        self.team_repository = self._load_team_repository(data['teams'])
 
     def _load_cirurgy_repository(self, cirurgias_data: list[dict]) -> CirurgyRepository:
         """Cria e retorna o repositório de cirurgias com base nos dados do JSON."""

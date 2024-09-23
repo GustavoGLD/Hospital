@@ -9,19 +9,19 @@ class TestDataService(unittest.TestCase):
     def setUp(self):
         # Exemplo de JSON com objetos esperados (IdObj, NameObj)
         self.mock_json_data = {
-            "cirurgias": [
+            "cirurgies": [
                 {"id": {"value": 1}, "name": {"value": "Cirurgia A"}, "equipe_id": {"value": 2}, "sala_id": {"value": 3}},
                 {"id": {"value": 2}, "name": {"value": "Cirurgia B"}, "equipe_id": {"value": 2}, "sala_id": {"value": 4}}
             ],
-            "profissionais": [
+            "professionals": [
                 {"id": {"value": 1}, "name": {"value": "Dr. Fulano"}, "equipe_id": {"value": 2}},
                 {"id": {"value": 2}, "name": {"value": "Dr. Ciclano"}, "equipe_id": {"value": 3}}
             ],
-            "salas": [
+            "rooms": [
                 {"id": {"value": 3}, "name": {"value": "Sala 1"}},
                 {"id": {"value": 4}, "name": {"value": "Sala 2"}}
             ],
-            "equipes": [
+            "teams": [
                 {"id": {"value": 2}, "name": {"value": "Equipe 1"}, "medico_responsavel_id": {"value": 1}},
                 {"id": {"value": 3}, "name": {"value": "Equipe 2"}, "medico_responsavel_id": {"value": 2}}
             ]

@@ -1,5 +1,7 @@
 @startuml
 
+title Inicialização do Sistema /// Frontend e Streamlit
+
 package "Script Principal" {
     ["streamlit_app.py"]
 }

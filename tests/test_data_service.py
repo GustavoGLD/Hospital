@@ -1,3 +1,10 @@
+import os
+import sys
+from inspect import getsourcefile
+
+current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda:0)))
+sys.path.insert(0, current_dir[:current_dir.rfind(os.path.sep)])
+
 import unittest
 from unittest.mock import patch, mock_open
 from src.backend.services.data_service import DataService

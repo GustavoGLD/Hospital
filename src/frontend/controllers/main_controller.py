@@ -17,5 +17,10 @@ class MainController(GenericController):
         data.load_data()
         st.write(data.cirurgy_repository.get_all())
 
+        self.view.view_repositories_tabs()
+
     def on_change_data_file(self):
+        pass
+
+    def on_change_tab(self):
         pass

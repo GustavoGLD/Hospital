@@ -1,0 +1,48 @@
+@startuml
+
+package "Script Principal" {
+    ["streamlit_app.py"]
+}
+
+package "Controllers" {
+    [MainController]
+    [CirurgyController]
+    [TeamController]
+    [RoomController]
+    [ProfessionalController]
+}
+
+package "Views" {
+    [MainView]
+    [CirurgyView]
+    [TeamView]
+    [RoomView]
+    [ProfessionalView]
+}
+
+' Relationships
+["streamlit_app.py"] --> [MainController] : calls
+[MainController] --> [MainView] : calls
+[MainController] --> [CirurgyController] : calls
+[MainController] --> [TeamController] : calls
+[MainController] --> [RoomController] : calls
+[MainController] --> [ProfessionalController] : calls
+
+[CirurgyController] --> [CirurgyView] : calls
+[TeamController] --> [TeamView] : calls
+[RoomController] --> [RoomView] : calls
+[ProfessionalController] --> [ProfessionalView] : calls
+
+' Notes
+
+note top of Controllers
+    Controllers: Camada de lógica responsável por processar
+    as interações do usuário e gerenciar os dados.
+end note
+
+note top of Views
+    Views: Camada de apresentação responsável por renderizar
+    as informações para o usuário.
+end note
+
+@enduml

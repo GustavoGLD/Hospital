@@ -1,1 +1,2 @@
-from gulogger import log_func
+from src.utils.gulogger import log_func
+

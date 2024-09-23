@@ -1,1 +1,1 @@
-from app.utils.gulogger.log_func import log_func
+from src.utils.gulogger.log_func import log_func

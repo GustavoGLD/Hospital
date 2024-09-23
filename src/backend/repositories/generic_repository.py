@@ -44,3 +44,6 @@ class GenericRepository(Generic[T]):
     def extract_names_with_ids(entities: list[T]) -> list[str]:
         return [f"{entity._model.name.value} - {entity._model.id.value}" for entity in entities]
 
+    def __repr__(self):
+        return f"{self.repository}"
+

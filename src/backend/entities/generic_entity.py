@@ -8,3 +8,6 @@ T = TypeVar("T", bound=GenericModel)
 class GenericEntity(Generic[T]):
     def __init__(self, model: T):
         self._model = model
+
+    def __repr__(self):
+        return f"{type(self._model)}({self._model})"

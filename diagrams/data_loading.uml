@@ -1,17 +1,40 @@
 @startuml
+title Funcionamento interno do DataService - Carregamento de dados
 
 ' O arquivo JSON que serve como fonte de dados
-entity "Arquivo JSON" as JSON_File {
+package "Arquivo JSON" {
+  entity "Arquivo JSON" as JSON_File {
   + dados: json
 }
+}
 
-class DataModel {
-  + cirurgias: List
-  + profissionais: List
-  + salas: List
-  + equipes: List
+package "Models" {
+    class DataModel {
+      + cirurgias: List
+      + profissionais: List
+      + salas: List
+      + equipes: List
 
-  + load_from_json(json_data: json): void
+      + load_from_json(json_data: json): void
+    }
+}
+
+package "Repositories" {
+    class CirurgyRepository {
+      + get_all(): List<CirurgyEntity>
+    }
+
+    class ProfessionalRepository {
+      + get_all(): List<ProfessionalEntity>
+    }
+
+    class RoomRepository {
+      + get_all(): List<RoomEntity>
+    }
+
+    class TeamRepository {
+      + get_all(): List<TeamEntity>
+    }
 }
 
 ' DataService que coordena a carga e o acesso aos repositórios
@@ -28,29 +51,22 @@ class DataService {
   + get_team_repository(): TeamRepository
 }
 
-' Repositórios de diferentes entidades
-class CirurgyRepository {
-  + get_all(): List<CirurgyModel>
-}
-
-class ProfessionalRepository {
-  + get_all(): List<ProfessionalModel>
-}
-
-class RoomRepository {
-  + get_all(): List<RoomModel>
-}
-
-class TeamRepository {
-  + get_all(): List<TeamModel>
-}
-
 ' Relacionamentos e fluxo de dados
 JSON_File --> DataModel : "Carrega dados do arquivo JSON para um Model"
-' DataModel --> DataService : "Inicializa com os dados processados"
-DataModel --> CirurgyRepository
-DataModel --> ProfessionalRepository  : "Inicializa os Repositórios"
+DataModel --> CirurgyRepository : "Inicializa os Repositórios"
+DataModel --> ProfessionalRepository
 DataModel --> RoomRepository
 DataModel --> TeamRepository
+
+' Notas explicativas
+note top of Models
+    Models: Representação de dados das entidades do sistema
+end note
+
+note top of Repositories
+    Repositories: Responsáveis por gerenciar o acesso
+    de dados para os diferentes agrupamentos de entidades
+    (Cirurgias, Profissionais, Salas, Equipes...)
+end note
 
 @enduml

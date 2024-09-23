@@ -1,0 +1,177 @@
+{
+  "cirurgies": [
+    {
+      "punicao": {"value": 10},
+      "equipe_id": {"value": 1},
+      "equipes_possiveis_ids": [{"value": 1}, {"value": 2}, {"value": 3}],
+      "tempo_inicio": {"start": 800},
+      "sala_id": {"value": 1}
+    },
+    {
+      "punicao": {"value": 5},
+      "equipe_id": {"value": 2},
+      "equipes_possiveis_ids": [{"value": 2}, {"value": 4}],
+      "tempo_inicio": {"start": 900},
+      "sala_id": {"value": 2}
+    },
+    {
+      "punicao": {"value": 8},
+      "equipe_id": {"value": 3},
+      "equipes_possiveis_ids": [{"value": 1}, {"value": 3}],
+      "tempo_inicio": {"start": 1030},
+      "sala_id": {"value": 3}
+    },
+    {
+      "punicao": {"value": 12},
+      "equipe_id": {"value": 4},
+      "equipes_possiveis_ids": [{"value": 4}],
+      "tempo_inicio": {"start": 1130},
+      "sala_id": {"value": 4}
+    },
+    {
+      "punicao": {"value": 15},
+      "equipe_id": {"value": 5},
+      "equipes_possiveis_ids": [{"value": 5}, {"value": 6}],
+      "tempo_inicio": {"start": 1200},
+      "sala_id": {"value": 5}
+    }
+  ],
+  "rooms": [
+    {
+      "id": {"value": 1},
+      "name": {"value": "Room A"},
+      "cirurgias_ids": [{"value": 1}, {"value": 2}]
+    },
+    {
+      "id": {"value": 2},
+      "name": {"value": "Room B"},
+      "cirurgias_ids": [{"value": 2}, {"value": 3}]
+    },
+    {
+      "id": {"value": 3},
+      "name": {"value": "Room C"},
+      "cirurgias_ids": [{"value": 3}, {"value": 4}]
+    },
+    {
+      "id": {"value": 4},
+      "name": {"value": "Room D"},
+      "cirurgias_ids": [{"value": 4}, {"value": 5}]
+    },
+    {
+      "id": {"value": 5},
+      "name": {"value": "Room E"},
+      "cirurgias_ids": [{"value": 5}]
+    }
+  ],
+  "teams": [
+    {
+      "id": {"value": 1},
+      "name": {"value": "Team Alpha"},
+      "profissionais_ids": [{"value": 101}, {"value": 102}, {"value": 103}],
+      "medico_responsavel_id": {"value": 101},
+      "cirurgias_ids": [{"value": 1}, {"value": 3}]
+    },
+    {
+      "id": {"value": 2},
+      "name": {"value": "Team Beta"},
+      "profissionais_ids": [{"value": 104}, {"value": 105}],
+      "medico_responsavel_id": {"value": 104},
+      "cirurgias_ids": [{"value": 2}]
+    },
+    {
+      "id": {"value": 3},
+      "name": {"value": "Team Gamma"},
+      "profissionais_ids": [{"value": 106}, {"value": 107}, {"value": 108}],
+      "medico_responsavel_id": {"value": 106},
+      "cirurgias_ids": [{"value": 1}, {"value": 4}]
+    },
+    {
+      "id": {"value": 4},
+      "name": {"value": "Team Delta"},
+      "profissionais_ids": [{"value": 109}, {"value": 110}],
+      "medico_responsavel_id": {"value": 109},
+      "cirurgias_ids": [{"value": 3}]
+    },
+    {
+      "id": {"value": 5},
+      "name": {"value": "Team Epsilon"},
+      "profissionais_ids": [{"value": 111}, {"value": 112}],
+      "medico_responsavel_id": {"value": 111},
+      "cirurgias_ids": [{"value": 4}, {"value": 5}]
+    }
+  ],
+  "professionals": [
+    {
+      "id": {"value": 101},
+      "name": {"value": "Dr. Smith"},
+      "equipes_ids": [{"value": 1}],
+      "equipes_responsaveis_ids": [{"value": 1}]
+    },
+    {
+      "id": {"value": 102},
+      "name": {"value": "Dr. John"},
+      "equipes_ids": [{"value": 1}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 103},
+      "name": {"value": "Dr. Alice"},
+      "equipes_ids": [{"value": 1}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 104},
+      "name": {"value": "Dr. Bob"},
+      "equipes_ids": [{"value": 2}],
+      "equipes_responsaveis_ids": [{"value": 2}]
+    },
+    {
+      "id": {"value": 105},
+      "name": {"value": "Dr. Eve"},
+      "equipes_ids": [{"value": 2}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 106},
+      "name": {"value": "Dr. Charlie"},
+      "equipes_ids": [{"value": 3}],
+      "equipes_responsaveis_ids": [{"value": 3}]
+    },
+    {
+      "id": {"value": 107},
+      "name": {"value": "Dr. Grace"},
+      "equipes_ids": [{"value": 3}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 108},
+      "name": {"value": "Dr. Mallory"},
+      "equipes_ids": [{"value": 3}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 109},
+      "name": {"value": "Dr. Trent"},
+      "equipes_ids": [{"value": 4}],
+      "equipes_responsaveis_ids": [{"value": 4}]
+    },
+    {
+      "id": {"value": 110},
+      "name": {"value": "Dr. Peggy"},
+      "equipes_ids": [{"value": 4}],
+      "equipes_responsaveis_ids": []
+    },
+    {
+      "id": {"value": 111},
+      "name": {"value": "Dr. Oscar"},
+      "equipes_ids": [{"value": 5}],
+      "equipes_responsaveis_ids": [{"value": 5}]
+    },
+    {
+      "id": {"value": 112},
+      "name": {"value": "Dr. Victor"},
+      "equipes_ids": [{"value": 5}],
+      "equipes_responsaveis_ids": []
+    }
+  ]
+}

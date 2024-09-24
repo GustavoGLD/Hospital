@@ -37,6 +37,9 @@ class BorgObj(BorgBaseClass[T]):
         else:
             st.session_state[self.key] = value
 
+    def is_declared(self) -> bool:
+        return self.key in st.session_state
+
 
 class BorgName(BorgBaseClass[T]):
     def __init__(self, naming: Callable, type_: Type[T], pre_key: str = ''):

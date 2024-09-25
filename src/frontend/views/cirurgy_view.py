@@ -12,13 +12,13 @@ from src.utils.gulogger.logcontext import MyLogger, LogC
 
 
 class CirurgyView:
-    _change_possible_rooms = BorgObj("_change_possible_rooms", list)
-    _change_possible_teams = BorgObj("_change_possible_teams", list)
-    _change_duration = BorgObj("_change_duration", int)
-    _change_priority = BorgObj("_change_priority", int)
-    _change_patient_name = BorgObj("_change_patient_name", str)
-    _change_cirugy_name = BorgObj("_change_cirugy_name", str)
-    _selected_cirurgy_name = BorgObj("_selected_cirurgy_name", str)
+    change_possible_rooms = BorgObj("_change_possible_rooms", list)
+    change_possible_teams = BorgObj("_change_possible_teams", list)
+    change_duration = BorgObj("_change_duration", int)
+    change_priority = BorgObj("_change_priority", int)
+    change_patient_name = BorgObj("_change_patient_name", str)
+    change_cirugy_name = BorgObj("_change_cirugy_name", str)
+    selected_cirurgy_name = BorgObj("_selected_cirurgy_name", str)
 
     def __init__(self, cntr=st):
         cntr.write("Cirurgias 💉")
@@ -43,7 +43,7 @@ class CirurgyView:
         if cirurgy:
             self.edit_possible_rooms.multiselect("Salas possíveis",
                                                  get_teams_names_with_id,
-                                                 key=CirurgyView._change_possible_rooms.key,
+                                                 key=CirurgyView.change_possible_rooms.key,
                                                  default=rooms_ids_to_rooms_with_name_and_id,
                                                  on_change=on_change)  # , kwargs={"logc": logc})
         else:
@@ -54,7 +54,7 @@ class CirurgyView:
         if cirurgy:
             self.edit_possible_teams.multiselect("Equipes possíveis",
                                                  get_teams_names_with_id,
-                                                 key=CirurgyView._change_possible_teams.key,
+                                                 key=CirurgyView.change_possible_teams.key,
                                                  default=teams_ids_to_teams_with_name_and_id,
                                                  on_change=on_change)  # , kwargs={"logc": logc})
         else:
@@ -62,28 +62,28 @@ class CirurgyView:
 
     def view_edit_duration(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
         if cirurgy:
-            self.edit_duration.number_input("Duração (min)", key=CirurgyView._change_duration.key,
+            self.edit_duration.number_input("Duração (min)", key=CirurgyView.change_duration.key,
                                             value=cirurgy.duration, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_duration.number_input("Duração (min)", disabled=True)
 
     def view_edit_priority(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
         if cirurgy:
-            self.edit_priority.number_input("Prioridade", key=CirurgyView._change_priority.key,
+            self.edit_priority.number_input("Prioridade", key=CirurgyView.change_priority.key,
                                             value=cirurgy.priority, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_priority.number_input("Prioridade", disabled=True)
 
     def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable):  # , logc: LogC):
         if cirurgy:
-            self.edit_patient.text_input("Nome do paciente", key=CirurgyView._change_patient_name.key,
+            self.edit_patient.text_input("Nome do paciente", key=CirurgyView.change_patient_name.key,
                                          value=cirurgy.patient_name, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_patient.text_input("Nome do paciente", disabled=True)
 
     def view_edit_name(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
         if cirurgy:
-            self.edit_name.text_input("Nome da cirurgia", key=CirurgyView._change_cirugy_name.key,
+            self.edit_name.text_input("Nome da cirurgia", key=CirurgyView.change_cirugy_name.key,
                                       value=cirurgy.cirurgy_name, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_name.text_input("Nome da cirurgia", disabled=True)
@@ -92,7 +92,7 @@ class CirurgyView:
         if cirurgies:
             with self.select_cirurgy:
                 self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
-                                              key=CirurgyView._selected_cirurgy_name.key,
+                                              key=CirurgyView.selected_cirurgy_name.key,
                                               disabled=False)  # , kwargs={"logc": logc})
         else:
             with self.select_cirurgy:
@@ -121,7 +121,7 @@ class CirurgyView:
                                            "get_rooms_names_with_id": get_rooms_names_with_id,
                                            "on_submit": on_submit,
                                        },
-                                       use_container_width=True, key=CirurgyView._change_cirugy_name.key)
+                                       use_container_width=True, key=CirurgyView.change_cirugy_name.key)
 
     @st.dialog("Adicionar Cirurgia", width="large")
     def view_add_cirurgy(self, get_teams_names_with_id: list, get_rooms_names_with_id: list, on_submit: Callable):

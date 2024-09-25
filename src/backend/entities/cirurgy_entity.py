@@ -7,9 +7,9 @@ class CirurgyEntity(GenericEntity[CirurgyModel]):
         super().__init__(model=model)
 
     def set_team(self, team: GenericEntity[TeamModel]):
-        team._model.cirurgias_ids.append(self._model.id)
-        self._model.equipe_id = team._model.id
+        team.model.cirurgias_ids.append(self.model.id)
+        self.model.equipe_id = team.model.id
 
     def set_room(self, room: GenericEntity[RoomModel]):
-        room._model.cirurgias_ids.append(self._model.id)
-        self._model.sala_id = room._model.id
+        room.model.cirurgias_ids.append(self.model.id)
+        self.model.sala_id = room.model.id

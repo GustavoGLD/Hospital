@@ -7,12 +7,12 @@ class TeamEntity(GenericEntity[TeamModel]):
         super().__init__(model=model)
 
     def add_professional(self, professional: GenericEntity[ProfessionalModel]):
-        professional._model.equipes_ids.append(self._model.id)
-        self._model.profissionais_ids.append(professional._model.id)
+        professional.model.equipes_ids.append(self.model.id)
+        self.model.profissionais_ids.append(professional.model.id)
 
     def set_responsible(self, professional: GenericEntity[ProfessionalModel]):
-        if professional._model.id not in self._model.profissionais_ids:
+        if professional.model.id not in self.model.profissionais_ids:
             raise ValueError("The professional is not in the team")
 
-        professional._model.equipes_responsaveis_ids.append(self._model.id)
-        self._model.medico_responsavel_id = professional._model.id
+        professional.model.equipes_responsaveis_ids.append(self.model.id)
+        self.model.medico_responsavel_id = professional.model.id

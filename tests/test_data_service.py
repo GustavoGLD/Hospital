@@ -59,19 +59,19 @@ class TestDataService(unittest.TestCase):
         # Verificar que as entidades foram carregadas corretamente
         cirurgias = cirurgy_repo.get_all()
         self.assertEqual(len(cirurgias), 2)
-        self.assertEqual(cirurgias[0]._model.name.value, "Cirurgia A")
+        self.assertEqual(cirurgias[0].model.name.value, "Cirurgia A")
 
         profissionais = professional_repo.get_all()
         self.assertEqual(len(profissionais), 2)
-        self.assertEqual(profissionais[0]._model.name.value, "Dr. Fulano")
+        self.assertEqual(profissionais[0].model.name.value, "Dr. Fulano")
 
         salas = room_repo.get_all()
         self.assertEqual(len(salas), 2)
-        self.assertEqual(salas[0]._model.name.value, "Sala 1")
+        self.assertEqual(salas[0].model.name.value, "Sala 1")
 
         equipes = team_repo.get_all()
         self.assertEqual(len(equipes), 2)
-        self.assertEqual(equipes[0]._model.name.value, "Equipe 1")
+        self.assertEqual(equipes[0].model.name.value, "Equipe 1")
 
 
 if __name__ == "__main__":

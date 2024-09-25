@@ -7,5 +7,5 @@ class RoomEntity(GenericEntity[RoomModel]):
         super().__init__(model=model)
 
     def add_cirurgy(self, cirurgy: GenericEntity[CirurgyModel]):
-        cirurgy._model.sala_id = self._model.id
-        self._model.cirurgias_ids.append(cirurgy._model.id)
+        cirurgy.model.sala_id = self.model.id
+        self.model.cirurgias_ids.append(cirurgy.model.id)

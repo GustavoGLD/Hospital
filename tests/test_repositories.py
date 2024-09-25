@@ -56,19 +56,19 @@ class TestRepositories(unittest.TestCase):
 
         all_cirurgies = self.cirurgy_repository.get_all()
         self.assertEqual(len(all_cirurgies), 4)
-        self.assertEqual(all_cirurgies[-1]._model.name.value, "Cirurgy D")
+        self.assertEqual(all_cirurgies[-1].model.name.value, "Cirurgy D")
 
     # Testando `get_by_name` com TeamRepository
     def test_get_by_name_team(self):
         team = self.team_repository.get_by_name("Team X")
         self.assertIsNotNone(team)
-        self.assertEqual(team._model.name.value, "Team X")
+        self.assertEqual(team.model.name.value, "Team X")
 
     # Testando `get_by_id` com RoomRepository
     def test_get_by_id_room(self):
         room = self.room_repository.get_by_id(0)
         self.assertIsNotNone(room)
-        self.assertEqual(room._model.name.value, "Room 1")
+        self.assertEqual(room.model.name.value, "Room 1")
 
     # Testando `get_names` com ProfessionalRepository
     def test_get_names_professionals(self):

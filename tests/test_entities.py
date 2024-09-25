@@ -35,10 +35,10 @@ class TestEntities(unittest.TestCase):
         cirurgy_entity = CirurgyEntity(model=cirurgy_model)
 
         # Verificações
-        self.assertEqual(cirurgy_entity._model.punicao.value, 50)
-        self.assertEqual(cirurgy_entity._model.equipe_id.value, 1)
-        self.assertEqual(cirurgy_entity._model.tempo_inicio.start, 1200)
-        self.assertEqual(cirurgy_entity._model.sala_id.value, 10)
+        self.assertEqual(cirurgy_entity.model.punicao.value, 50)
+        self.assertEqual(cirurgy_entity.model.equipe_id.value, 1)
+        self.assertEqual(cirurgy_entity.model.tempo_inicio.start, 1200)
+        self.assertEqual(cirurgy_entity.model.sala_id.value, 10)
 
     def test_create_professional_entity(self):
         # Criar um modelo de profissional com dados específicos
@@ -51,9 +51,9 @@ class TestEntities(unittest.TestCase):
         professional_entity = ProfessionalEntity(model=professional_model)
 
         # Verificações
-        self.assertEqual(professional_entity._model.id.value, 3)
-        self.assertEqual(professional_entity._model.name.value, "Dr. John Doe")
-        self.assertEqual(len(professional_entity._model.equipes_ids), 2)
+        self.assertEqual(professional_entity.model.id.value, 3)
+        self.assertEqual(professional_entity.model.name.value, "Dr. John Doe")
+        self.assertEqual(len(professional_entity.model.equipes_ids), 2)
 
     def test_create_room_entity(self):
         # Criar um modelo de sala com dados específicos
@@ -65,9 +65,9 @@ class TestEntities(unittest.TestCase):
         room_entity = RoomEntity(model=room_model)
 
         # Verificações
-        self.assertEqual(room_entity._model.id.value, 5)
-        self.assertEqual(room_entity._model.name.value, "Sala de Cirurgia 1")
-        self.assertEqual(len(room_entity._model.cirurgias_ids), 2)
+        self.assertEqual(room_entity.model.id.value, 5)
+        self.assertEqual(room_entity.model.name.value, "Sala de Cirurgia 1")
+        self.assertEqual(len(room_entity.model.cirurgias_ids), 2)
 
     def test_create_team_entity(self):
         # Criar um modelo de equipe com dados específicos
@@ -80,10 +80,10 @@ class TestEntities(unittest.TestCase):
         team_entity = TeamEntity(model=team_model)
 
         # Verificações
-        self.assertEqual(team_entity._model.id.value, 7)
-        self.assertEqual(team_entity._model.name.value, "Equipe A")
-        self.assertEqual(team_entity._model.medico_responsavel_id.value, 20)
-        self.assertEqual(len(team_entity._model.profissionais_ids), 2)
+        self.assertEqual(team_entity.model.id.value, 7)
+        self.assertEqual(team_entity.model.name.value, "Equipe A")
+        self.assertEqual(team_entity.model.medico_responsavel_id.value, 20)
+        self.assertEqual(len(team_entity.model.profissionais_ids), 2)
 
 
 class TestEntitiesBehaviours(unittest.TestCase):

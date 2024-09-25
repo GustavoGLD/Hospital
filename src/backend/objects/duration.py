@@ -13,3 +13,6 @@ class DurationObj(BaseModel):
 
     def __str__(self):
         return f"{self.hours}h {self.minutes}m {self.seconds}s"
+
+    def __repr__(self):
+        return self.__str__()

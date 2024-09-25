@@ -17,12 +17,12 @@ class TestDataService(unittest.TestCase):
         # Exemplo de JSON com objetos esperados (IdObj, NameObj)
         self.mock_json_data = {
             "cirurgies": [
-                {"id": {"value": 1}, "name": {"value": "Cirurgia A"}, "equipe_id": {"value": 2}, "sala_id": {"value": 3}},
-                {"id": {"value": 2}, "name": {"value": "Cirurgia B"}, "equipe_id": {"value": 2}, "sala_id": {"value": 4}}
+                {"id": {"value": 1}, "name": {"value": "Cirurgia A"}, "team_id": {"value": 2}, "sala_id": {"value": 3}},
+                {"id": {"value": 2}, "name": {"value": "Cirurgia B"}, "team_id": {"value": 2}, "sala_id": {"value": 4}}
             ],
             "professionals": [
-                {"id": {"value": 1}, "name": {"value": "Dr. Fulano"}, "equipe_id": {"value": 2}},
-                {"id": {"value": 2}, "name": {"value": "Dr. Ciclano"}, "equipe_id": {"value": 3}}
+                {"id": {"value": 1}, "name": {"value": "Dr. Fulano"}, "team_id": {"value": 2}},
+                {"id": {"value": 2}, "name": {"value": "Dr. Ciclano"}, "team_id": {"value": 3}}
             ],
             "rooms": [
                 {"id": {"value": 3}, "name": {"value": "Sala 1"}},

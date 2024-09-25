@@ -46,10 +46,10 @@ def test_cirurgy_model_custom_data():
     )
 
     # Verifica se os dados estão corretos
-    assert cirurgy_model.punicao.value == 5
-    assert cirurgy_model.equipe_id.value == 1
-    assert cirurgy_model.equipes_possiveis_ids[1].value == 4
-    assert cirurgy_model.tempo_inicio.start == 100
+    assert cirurgy_model.penalty.value == 5
+    assert cirurgy_model.team_id.value == 1
+    assert cirurgy_model.possible_teams_ids[1].value == 4
+    assert cirurgy_model.time.start == 100
     assert cirurgy_model.sala_id.value == 42
 
     print(cirurgy_model.model_dump())

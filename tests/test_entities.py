@@ -35,9 +35,9 @@ class TestEntities(unittest.TestCase):
         cirurgy_entity = CirurgyEntity(model=cirurgy_model)
 
         # Verificações
-        self.assertEqual(cirurgy_entity.model.punicao.value, 50)
-        self.assertEqual(cirurgy_entity.model.equipe_id.value, 1)
-        self.assertEqual(cirurgy_entity.model.tempo_inicio.start, 1200)
+        self.assertEqual(cirurgy_entity.model.penalty.value, 50)
+        self.assertEqual(cirurgy_entity.model.team_id.value, 1)
+        self.assertEqual(cirurgy_entity.model.time.start, 1200)
         self.assertEqual(cirurgy_entity.model.sala_id.value, 10)
 
     def test_create_professional_entity(self):
@@ -103,7 +103,7 @@ class TestEntitiesBehaviours(unittest.TestCase):
     def test_set_team(self):
         # Testa se a cirurgia foi associada ao time corretamente
         self.cirurgy_entity.set_team(self.team_entity)
-        self.assertEqual(self.cirurgy_model.equipe_id, self.team_model.id)
+        self.assertEqual(self.cirurgy_model.team_id, self.team_model.id)
         self.assertIn(self.cirurgy_model.id, self.team_model.cirurgias_ids)
 
     def test_set_room(self):

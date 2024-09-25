@@ -10,4 +10,4 @@ class GenericEntity(Generic[T]):
         self._model = model
 
     def __repr__(self):
-        return f"{type(self._model)}({self._model})"
+        return f"{type(self._model).__qualname__}({self._model})"

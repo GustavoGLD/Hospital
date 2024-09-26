@@ -8,8 +8,8 @@ class CirurgyEntity(GenericEntity[CirurgyModel]):
 
     def set_team(self, team: GenericEntity[TeamModel]):
         team.model.cirurgias_ids.append(self.model.id)
-        self.model.equipe_id = team.model.id
+        self.model.team_id = team.model.id
 
     def set_room(self, room: GenericEntity[RoomModel]):
         room.model.cirurgias_ids.append(self.model.id)
-        self.model.sala_id = room.model.id
+        self.model.room_id = room.model.id

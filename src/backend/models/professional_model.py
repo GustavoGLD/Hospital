@@ -7,5 +7,6 @@ from src.backend.objects import IdObj
 
 
 class ProfessionalModel(GenericModel):
-    equipes_ids: List[IdObj] = Field(default=[])
-    equipes_responsaveis_ids: List[IdObj] = Field(default=[])
+    teams_ids: List[IdObj] = Field(default=[])
+    responsibles_teams_ids: List[IdObj] = Field(default=[])
+

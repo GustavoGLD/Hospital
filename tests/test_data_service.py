@@ -17,20 +17,36 @@ class TestDataService(unittest.TestCase):
         # Exemplo de JSON com objetos esperados (IdObj, NameObj)
         self.mock_json_data = {
             "cirurgies": [
-                {"id": {"value": 1}, "name": {"value": "Cirurgia A"}, "team_id": {"value": 2}, "sala_id": {"value": 3}},
-                {"id": {"value": 2}, "name": {"value": "Cirurgia B"}, "team_id": {"value": 2}, "sala_id": {"value": 4}}
+                {
+                    "penalty": {"value": 50},
+                    "duration": {"hours": 1, "minutes": 30, "seconds": 0},
+                    "possible_teams_ids": [{"value": 1}, {"value": 2}],
+                    "possible_rooms_ids": [{"value": 3}, {"value": 4}],
+                    "team_id": {"value": 2},
+                    "room_id": {"value": 3},
+                    "time": {"start": 1200}
+                },
+                {
+                    "penalty": {"value": 75},
+                    "duration": {"hours": 0, "minutes": 45, "seconds": 0},
+                    "possible_teams_ids": [{"value": 1}, {"value": 3}],
+                    "possible_rooms_ids": [{"value": 4}, {"value": 5}],
+                    "team_id": {"value": 3},
+                    "room_id": {"value": 4},
+                    "time": {"start": 900}
+                }
             ],
             "professionals": [
-                {"id": {"value": 1}, "name": {"value": "Dr. Fulano"}, "team_id": {"value": 2}},
-                {"id": {"value": 2}, "name": {"value": "Dr. Ciclano"}, "team_id": {"value": 3}}
+                {"id": {"value": 1}, "name": {"value": "Dr. Fulano"}},
+                {"id": {"value": 2}, "name": {"value": "Dr. Ciclano"}}
             ],
             "rooms": [
                 {"id": {"value": 3}, "name": {"value": "Sala 1"}},
                 {"id": {"value": 4}, "name": {"value": "Sala 2"}}
             ],
             "teams": [
-                {"id": {"value": 2}, "name": {"value": "Equipe 1"}, "medico_responsavel_id": {"value": 1}},
-                {"id": {"value": 3}, "name": {"value": "Equipe 2"}, "medico_responsavel_id": {"value": 2}}
+                {"id": {"value": 2}, "name": {"value": "Equipe 1"}, "responsible_professional_id": {"value": 1}},
+                {"id": {"value": 3}, "name": {"value": "Equipe 2"}, "responsible_professional_id": {"value": 2}}
             ]
         }
 
@@ -59,7 +75,7 @@ class TestDataService(unittest.TestCase):
         # Verificar que as entidades foram carregadas corretamente
         cirurgias = cirurgy_repo.get_all()
         self.assertEqual(len(cirurgias), 2)
-        self.assertEqual(cirurgias[0].model.name.value, "Cirurgia A")
+        self.assertEqual(cirurgias[0].model.penalty.value, 50)
 
         profissionais = professional_repo.get_all()
         self.assertEqual(len(profissionais), 2)

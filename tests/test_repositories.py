@@ -2,8 +2,7 @@ import os
 import sys
 from inspect import getsourcefile
 
-
-current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda:0)))
+current_dir = os.path.dirname(os.path.abspath(getsourcefile(lambda: 0)))
 sys.path.insert(0, current_dir[:current_dir.rfind(os.path.sep)])
 
 import unittest
@@ -13,15 +12,34 @@ from src.backend.repositories.room_repository import RoomRepository
 from src.backend.repositories.team_repository import TeamRepository
 from src.backend.entities import CirurgyEntity, ProfessionalEntity, RoomEntity, TeamEntity
 from src.backend.models import CirurgyModel, ProfessionalModel, RoomModel, TeamModel
-from src.backend.objects import NameObj
+from src.backend.objects import NameObj, IdObj, PunishmentObj, DurationObj, TimeObj
 
 
 class TestRepositories(unittest.TestCase):
 
     def setUp(self):
         # Dados de exemplo
-        self.cirurgy_model_1 = CirurgyModel(name=NameObj(value="Cirurgy A"))
-        self.cirurgy_model_2 = CirurgyModel(name=NameObj(value="Cirurgy B"))
+        self.cirurgy_model_1 = CirurgyModel(
+            penalty=PunishmentObj(value=50),
+            duration=DurationObj(hours=1, minutes=0),  # Você precisa fornecer a duração adequada
+            possible_teams_ids=[IdObj(value=1)],  # Fornecendo IDs de exemplo
+            possible_rooms_ids=[IdObj(value=2)],  # Fornecendo IDs de exemplo
+            team_id=IdObj(value=1),  # Adicionando um ID de equipe
+            room_id=IdObj(value=2),  # Adicionando um ID de sala
+            time=TimeObj(start=1200),  # Exemplo de tempo
+            name=NameObj(value="Cirurgy A")
+        )
+        self.cirurgy_model_2 = CirurgyModel(
+            penalty=PunishmentObj(value=75),
+            duration=DurationObj(hours=2, minutes=30),
+            possible_teams_ids=[IdObj(value=3)],
+            possible_rooms_ids=[IdObj(value=4)],
+            team_id=IdObj(value=3),
+            room_id=IdObj(value=4),
+            time=TimeObj(start=1000),
+            name=NameObj(value="Cirurgy B")
+        )
+
         self.team_model_1 = TeamModel(name=NameObj(value="Team X"))
         self.team_model_2 = TeamModel(name=NameObj(value="Team Y"))
         self.professional_model_1 = ProfessionalModel(name=NameObj(value="Professional 1"))
@@ -47,8 +65,26 @@ class TestRepositories(unittest.TestCase):
 
     # Testando método `add_all` e `get_all` com CirurgyRepository
     def test_add_all_and_get_all_cirurgies(self):
-        cirurgy_model_3 = CirurgyModel(name=NameObj(value="Cirurgy C"))
-        cirurgy_model_4 = CirurgyModel(name=NameObj(value="Cirurgy D"))
+        cirurgy_model_3 = CirurgyModel(
+            penalty=PunishmentObj(value=60),
+            duration=DurationObj(hours=0, minutes=45),
+            possible_teams_ids=[IdObj(value=5)],
+            possible_rooms_ids=[IdObj(value=6)],
+            team_id=IdObj(value=5),
+            room_id=IdObj(value=6),
+            time=TimeObj(start=900),
+            name=NameObj(value="Cirurgy C")
+        )
+        cirurgy_model_4 = CirurgyModel(
+            penalty=PunishmentObj(value=85),
+            duration=DurationObj(hours=3, minutes=15),
+            possible_teams_ids=[IdObj(value=7)],
+            possible_rooms_ids=[IdObj(value=8)],
+            team_id=IdObj(value=7),
+            room_id=IdObj(value=8),
+            time=TimeObj(start=1500),
+            name=NameObj(value="Cirurgy D")
+        )
         cirurgy_entity_3 = CirurgyEntity(cirurgy_model_3)
         cirurgy_entity_4 = CirurgyEntity(cirurgy_model_4)
 
@@ -95,4 +131,3 @@ class TestRepositories(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -6,6 +6,7 @@ from typing import Callable, Union
 
 import streamlit as st
 
+from src.backend.entities import CirurgyEntity
 from src.backend.models import CirurgyModel
 from src.utils.borg import BorgObj
 from src.utils.gulogger.logcontext import MyLogger, LogC
@@ -38,7 +39,7 @@ class CirurgyView:
             self.edit_possible_teams = st.container()
             self.edit_possible_rooms = st.container()
 
-    def view_edit_possible_rooms(self, cirurgy: CirurgyModel, get_teams_names_with_id: list,
+    def view_edit_possible_rooms(self, cirurgy: CirurgyEntity, get_teams_names_with_id: list,
                                  rooms_ids_to_rooms_with_name_and_id: list, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_possible_rooms.multiselect("Salas possíveis",
@@ -49,7 +50,7 @@ class CirurgyView:
         else:
             self.edit_possible_rooms.multiselect("Salas possíveis", get_teams_names_with_id, disabled=True)
 
-    def view_edit_possible_teams(self, cirurgy: CirurgyModel, get_teams_names_with_id: list,
+    def view_edit_possible_teams(self, cirurgy: CirurgyEntity, get_teams_names_with_id: list,
                                  teams_ids_to_teams_with_name_and_id: list, on_change: Callable):
         if cirurgy:
             self.edit_possible_teams.multiselect("Equipes possíveis",
@@ -60,31 +61,31 @@ class CirurgyView:
         else:
             self.edit_possible_teams.multiselect("Equipes possíveis", get_teams_names_with_id, disabled=True)
 
-    def view_edit_duration(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
+    def view_edit_duration(self, cirurgy: CirurgyEntity, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_duration.number_input("Duração (min)", key=CirurgyView.change_duration.key,
-                                            value=cirurgy.duration, on_change=on_change)  # , kwargs={"logc": logc})
+                                            value=cirurgy.model.duration.minutes, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_duration.number_input("Duração (min)", disabled=True)
 
-    def view_edit_priority(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
+    def view_edit_priority(self, cirurgy: CirurgyEntity, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_priority.number_input("Prioridade", key=CirurgyView.change_priority.key,
-                                            value=cirurgy.priority, on_change=on_change)  # , kwargs={"logc": logc})
+                                            value=cirurgy.model.penalty.value, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_priority.number_input("Prioridade", disabled=True)
 
-    def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable):  # , logc: LogC):
+    def view_edit_patient(self, cirurgy: CirurgyEntity, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_patient.text_input("Nome do paciente", key=CirurgyView.change_patient_name.key,
-                                         value=cirurgy.patient_name, on_change=on_change)  # , kwargs={"logc": logc})
+                                         value=cirurgy.model.patient.name, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_patient.text_input("Nome do paciente", disabled=True)
 
-    def view_edit_name(self, cirurgy: CirurgyModel, on_change: Callable):  # , logc: LogC):
+    def view_edit_name(self, cirurgy: CirurgyEntity, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_name.text_input("Nome da cirurgia", key=CirurgyView.change_cirugy_name.key,
-                                      value=cirurgy.cirurgy_name, on_change=on_change)  # , kwargs={"logc": logc})
+                                      value=cirurgy.model.name, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_name.text_input("Nome da cirurgia", disabled=True)
 
@@ -121,7 +122,7 @@ class CirurgyView:
                                            "get_rooms_names_with_id": get_rooms_names_with_id,
                                            "on_submit": on_submit,
                                        },
-                                       use_container_width=True, key=CirurgyView.change_cirugy_name.key)
+                                       use_container_width=True)
 
     @st.dialog("Adicionar Cirurgia", width="large")
     def view_add_cirurgy(self, get_teams_names_with_id: list, get_rooms_names_with_id: list, on_submit: Callable):

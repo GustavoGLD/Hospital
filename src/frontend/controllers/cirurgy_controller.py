@@ -16,6 +16,12 @@ class CirurgyController(GenericController):
         self.view = CirurgyView()
         self.start()
 
+        self.view.list_cirurgies.data_editor(
+            [
+                i.model.model_dump()
+                for i in self.data.cirurgy_repository.get_all()
+            ])
+
     def start(self) -> None:
         self.view.view_add_cirurgy_button(self.view.view_add_cirurgy, self.data.team_repository.get_names_and_ids(),
                                           self.data.room_repository.get_names_and_ids(), self.on_submit_cirurgy)
@@ -51,16 +57,16 @@ class CirurgyController(GenericController):
         ]
 
     def on_change_duration(self):
-        CirurgyController.selected_cirurgy.value.model.duration = CirurgyView.change_duration.value
+        CirurgyController.selected_cirurgy.value.model.duration.minutes = CirurgyView.change_duration.value
 
     def on_change_priority(self):
-        CirurgyController.selected_cirurgy.value.model.priority = CirurgyView.change_priority.value
+        CirurgyController.selected_cirurgy.value.model.penalty.value = CirurgyView.change_priority.value
 
     def on_change_patient_name(self):
-        CirurgyController.selected_cirurgy.value.model.patient_name = CirurgyView.change_patient_name.value
+        CirurgyController.selected_cirurgy.value.model.patient.name.value = CirurgyView.change_patient_name.value
 
     def on_change_name(self):
-        CirurgyController.selected_cirurgy.value.model.name = CirurgyView.change_cirugy_name.value
+        CirurgyController.selected_cirurgy.value.model.name.value = CirurgyView.change_cirugy_name.value
 
     def on_selection(self):
         if CirurgyView.selected_cirurgy_name.is_declared():

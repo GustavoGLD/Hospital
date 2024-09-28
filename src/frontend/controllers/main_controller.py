@@ -14,8 +14,9 @@ class MainController(GenericController):
         self.data = DataService(f'data/{MainView.data_file.value}')
 
     def start(self):
+        if not MainView.data_file.value:
+            return st.write("Please select a data file")
         self.data.load_data()
-        st.write(self.data.cirurgy_repository.get_all())
         view_controller = CirurgyController(self.data)
 
         self.view.view_repositories_tabs()

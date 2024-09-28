@@ -2,8 +2,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from src.backend.objects.generic_obj import GenericObj
 
-class DurationObj(BaseModel):
+
+class DurationObj(GenericObj):
     hours: Optional[int] = Field(default=None)
     minutes: Optional[int] = Field(default=None)
     seconds: Optional[int] = Field(default=None)

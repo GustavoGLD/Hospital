@@ -2,8 +2,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from src.backend.objects.generic_obj import GenericObj
 
-class TimeObj(BaseModel):
+
+class TimeObj(GenericObj):
     start: Optional[int] = Field(default=None)
 
     def __str__(self):

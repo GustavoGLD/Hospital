@@ -9,3 +9,6 @@ from src.backend.objects.name_obj import NameObj
 class GenericModel(BaseModel):
     id: Optional[IdObj] = Field(default=IdObj())
     name: NameObj = Field(default=NameObj())
+
+    class Config:
+        validate_assignment = True

@@ -2,8 +2,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from src.backend.objects.generic_obj import GenericObj
 
-class IdObj(BaseModel):
+
+class IdObj(GenericObj):
     value: int = Field(default=0)
 
     def __str__(self):

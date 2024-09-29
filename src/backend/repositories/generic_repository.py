@@ -1,7 +1,5 @@
 from typing import TypeVar, Generic, Union, Optional
 
-from multipledispatch import dispatch
-
 from src.backend.entities.generic_entity import GenericEntity
 from src.backend.models.generic_model import GenericModel
 from src.backend.objects import IdObj

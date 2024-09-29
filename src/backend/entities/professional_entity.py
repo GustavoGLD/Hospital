@@ -8,8 +8,8 @@ class ProfessionalEntity(GenericEntity[ProfessionalModel]):
 
     def add_team(self, team: GenericEntity[TeamModel]):
         team.model.professionals_ids.append(self.model.id)
-        self.model.equipe_id = team.model.id
+        self.model.teams_ids.append(team.model.id)
 
     def set_responsible(self, team: GenericEntity[TeamModel]):
         team.model.responsible_professional_id = self.model.id
-        self.model.equipe_id = team.model.id
+        self.model.responsibles_teams_ids.append(team.model.id)

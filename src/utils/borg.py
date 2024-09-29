@@ -23,7 +23,7 @@ class BorgObj(BorgBaseClass[T]):
     @property
     def value(self) -> T:
         if self.key not in st.session_state:
-            return None
+            return None  # type: ignore
         else:
             return st.session_state[self.key]
 
@@ -76,7 +76,7 @@ class BorgName(BorgBaseClass[T]):
 
 
 class Borg:
-    _shared_state = {}
+    _shared_state = {}  # type: ignore
 
     def __getattr__(self, item: str) -> Any:
         if item not in Borg._shared_state:

@@ -19,27 +19,27 @@ class CirurgyController(GenericController):
         self.view.list_cirurgies.data_editor(
             [
                 i.model.model_dump()
-                for i in self.data.cirurgy_repository.get_all()
+                for i in self.data.get_cirurgy_repository().get_all()
             ])
 
     def start(self) -> None:
-        self.view.view_add_cirurgy_button(self.view.view_add_cirurgy, self.data.team_repository.get_names_and_ids(),
-                                          self.data.room_repository.get_names_and_ids(), self.on_submit_cirurgy)
-        self.view.view_selection(self.data.cirurgy_repository.get_names_and_ids(), on_change=self.on_selection)
+        self.view.view_add_cirurgy_button(self.view.view_add_cirurgy, self.data.get_team_repository().get_names_and_ids(),
+                                          self.data.get_room_repository().get_names_and_ids(), self.on_submit_cirurgy)
+        self.view.view_selection(self.data.get_cirurgy_repository().get_names_and_ids(), on_change=self.on_selection)
         self.view.view_edit_name(CirurgyController.selected_cirurgy.value, on_change=self.on_change_name)
         self.view.view_edit_patient(CirurgyController.selected_cirurgy.value,
                                     on_change=self.on_change_patient_name)
         self.view.view_edit_duration(CirurgyController.selected_cirurgy.value, on_change=self.on_change_duration)
         self.view.view_edit_priority(CirurgyController.selected_cirurgy.value, on_change=self.on_change_priority)
         self.view.view_edit_possible_teams(CirurgyController.selected_cirurgy.value,
-                                           self.data.team_repository.get_names_and_ids(),
-                                           self.data.team_repository.get_id_by_names_with_ids(
+                                           self.data.get_team_repository().get_names_and_ids(),
+                                           self.data.get_team_repository().get_id_by_names_with_ids(
                                                CirurgyController.selected_cirurgy.value.model.possible_teams_ids
                                            ) if CirurgyController.selected_cirurgy.value else [],
                                            on_change=self.on_change_possible_teams)
         self.view.view_edit_possible_rooms(CirurgyController.selected_cirurgy.value,
-                                           self.data.room_repository.get_names_and_ids(),
-                                           self.data.room_repository.get_id_by_names_with_ids(
+                                           self.data.get_room_repository().get_names_and_ids(),
+                                           self.data.get_room_repository().get_id_by_names_with_ids(
                                                 CirurgyController.selected_cirurgy.value.model.possible_rooms_ids
                                            ) if CirurgyController.selected_cirurgy.value else [],
                                            on_change=self.on_change_possible_rooms)

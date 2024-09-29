@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Union, Optional
+from typing import TypeVar, Generic, Union, Optional, Sequence
 
 from src.backend.entities.generic_entity import GenericEntity
 from src.backend.models.generic_model import GenericModel
@@ -46,9 +46,9 @@ class GenericRepository(Generic[T]):
 
     def get_id_by_names_with_ids(self, teams_ids: Union[list[int], list[IdObj]]) -> list[str]:
         if teams_ids and isinstance(teams_ids[0], int):
-            return [f"{self.get_by_id(team_id).model.name.value} - {team_id}" for team_id in teams_ids]
+            return [f"{self.get_by_id(team_id).model.name.value} - {team_id}" for team_id in teams_ids] # type: ignore
         elif teams_ids and isinstance(teams_ids[0], IdObj):
-            return [f"{self.get_by_id(team_id.value).model.name.value} - {team_id.value}" for team_id in teams_ids]
+            return [f"{self.get_by_id(team_id.value).model.name.value} - {team_id.value}" for team_id in teams_ids]  # type: ignore
         else:
             raise ValueError("Invalid type")
 

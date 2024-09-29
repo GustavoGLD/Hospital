@@ -1,5 +1,7 @@
 from typing import TypeVar, Generic, Union, Optional
 
+from multipledispatch import dispatch
+
 from src.backend.entities.generic_entity import GenericEntity
 from src.backend.models.generic_model import GenericModel
 from src.backend.objects import IdObj
@@ -29,11 +31,17 @@ class GenericRepository(Generic[T]):
     def get_names(self) -> list[str]:
         return [ett.model.name.value for ett in self.repository]
     
-    def get_by_id(self, _id: int | str) -> T | None:
-        return next((ett for ett in self.repository if int(ett.model.id.value) == int(_id)), None)
+    def get_by_id(self, _id: int | str) -> T:
+        if r := next((ett for ett in self.repository if int(ett.model.id.value) == int(_id)), None):
+            return r
+        else:
+            raise ValueError(f"Entity with id {_id} not found")
 
-    def get_by_name(self, name: str) -> T | None:
-        return next((entity for entity in self.repository if entity.model.name.value == name), None)
+    def get_by_name(self, name: str) -> T:
+        if r := next((entity for entity in self.repository if entity.model.name.value == name), None):
+            return r
+        else:
+            raise ValueError(f"Entity with name {name} not found")
 
     def get_names_and_ids(self) -> list[str]:
         return [f"{ett.model.name.value} - {ett.model.id.value}" for ett in self.repository]
@@ -45,7 +53,6 @@ class GenericRepository(Generic[T]):
             return [f"{self.get_by_id(team_id.value).model.name.value} - {team_id.value}" for team_id in teams_ids]
         else:
             raise ValueError("Invalid type")
-
 
     @staticmethod
     def extract_names_with_ids(entities: list[T]) -> list[str]:

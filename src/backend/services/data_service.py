@@ -76,17 +76,21 @@ class DataService:
 
     def get_cirurgy_repository(self) -> CirurgyRepository:
         """Retorna o repositório de cirurgias."""
-        return self.cirurgy_repository
+        assert self.cirurgy_repository is not None, "Repositório de cirurgias não inicializado."
+        return self.cirurgy_repository  # self.cirurgy_repository: CirurgyRepository
 
     def get_professional_repository(self) -> ProfessionalRepository:
         """Retorna o repositório de profissionais."""
-        return self.professional_repository
+        assert self.professional_repository is not None, "Repositório de profissionais não inicializado."
+        return self.professional_repository  # self.professional_repository: ProfessionalRepository
 
     def get_room_repository(self) -> RoomRepository:
         """Retorna o repositório de salas."""
-        return self.room_repository
+        assert self.room_repository is not None, "Repositório de salas não inicializado."
+        return self.room_repository  # self.room_repository: RoomRepository
 
     def get_team_repository(self) -> TeamRepository:
         """Retorna o repositório de equipes."""
-        return self.team_repository
+        assert self.team_repository is not None, "Repositório de equipes não inicializado."
+        return self.team_repository  # self.team_repository: TeamRepository
 

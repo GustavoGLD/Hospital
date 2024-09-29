@@ -9,7 +9,7 @@ import streamlit as st
 from src.backend.entities import CirurgyEntity
 from src.backend.models import CirurgyModel
 from src.utils.borg import BorgObj
-from src.utils.gulogger.logcontext import MyLogger, LogC
+#from src.utils.gulogger.logcontext import MyLogger, LogC
 
 
 class CirurgyView:
@@ -151,7 +151,7 @@ class CirurgyView:
             )
             st.rerun()
 
-    @MyLogger.decorate_function(add_extra=["CirurgyView"])
+    #@MyLogger.decorate_function(add_extra=["CirurgyView"])
     def view_cirurgy_list(self, cirurgies: list):  # , logc: LogC):
         self.col2.write(f'{len(cirurgies)} cirurgias')
         self.col2.data_editor([cirurgy.get_dict() for cirurgy in cirurgies], use_container_width=True)

@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Union
+from typing import TypeVar, Generic, Union, Optional
 
 from src.backend.entities.generic_entity import GenericEntity
 from src.backend.models.generic_model import GenericModel
@@ -8,7 +8,7 @@ T = TypeVar("T", bound=GenericEntity[GenericModel])
 
 
 class GenericRepository(Generic[T]):
-    def __init__(self, entity_list: list[T] = None):
+    def __init__(self, entity_list: Optional[list[T]] = None):
         self._id_counter = 0
         self.repository: list[T] = []
 

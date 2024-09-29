@@ -1,7 +1,7 @@
 import sys
 from contextlib import ContextDecorator
 from functools import wraps, partial
-from typing import Any
+from typing import Any, Optional
 
 from loguru import logger
 import inspect
@@ -11,7 +11,7 @@ LogC = dict[str, Any]
 
 
 class MyLogger:
-    def __init__(self, add_tags : list[str] | None, logc: LogC = None):
+    def __init__(self, add_tags : list[str] | None, logc: Optional[LogC] = None):
         if logc is None:
             logc = dict[str, Any]()
             logc['tags'] = []

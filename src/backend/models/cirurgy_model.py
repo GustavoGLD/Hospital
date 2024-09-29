@@ -16,7 +16,7 @@ class CirurgyModel(GenericModel):
     possible_teams_ids: list[IdObj] = Field()
     possible_rooms_ids: list[IdObj] = Field()
 
-    team_id: Optional[IdObj] = Field(default=IdObj())
-    room_id: Optional[IdObj] = Field(default=IdObj())
-    time: Optional[TimeObj] = Field(default=TimeObj())
-    patient: Optional[PatientModel] = Field(default=PatientModel())
+    team_id: IdObj = Field(default=IdObj())
+    room_id: IdObj = Field(default=IdObj())
+    time: TimeObj = Field(default=TimeObj())
+    patient: PatientModel = Field(default=PatientModel())

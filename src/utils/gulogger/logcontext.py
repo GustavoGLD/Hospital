@@ -31,7 +31,7 @@ class MyLogger:
         logger.opt(depth=1).debug('Exiting context {tags}', **self.__internal_logcontext)
 
     @staticmethod
-    def decorate_function(add_extra: list[str] = None):
+    def decorate_function(add_extra: list[str] = None):  # type: ignore
         def contextualizing(func):
             @wraps(func)
             def wrapper(*args, **kwargs):

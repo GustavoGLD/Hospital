@@ -13,7 +13,7 @@ from streamlit.testing.v1 import AppTest
 from src.frontend.views.cirurgy_view import CirurgyView
 from src.backend.entities.cirurgy_entity import CirurgyEntity
 from src.frontend.views.main_view import MainView
-
+from src.frontend.views.team_view import TeamView
 
 import pytest
 
@@ -48,6 +48,27 @@ class TestViews(unittest.TestCase):
         logger.info(f"{self.at.multiselect(key=CirurgyView.change_possible_rooms.key)}")
         self.at.multiselect(key=CirurgyView.change_possible_rooms.key).select("Room B - 1").run()
 
+    @unittest.skip("Not implemented yet")
+    def test_professional_view(self):
+        def f(args: list):
+            logger.info(f"{self.at.selectbox(key=TeamView._selected_team.key)}")
+            self.at.selectbox(key=TeamView._selected_team.key).select(args[0]).run()
+
+            logger.info(f"{self.at.selectbox(key=TeamView._doctor_responsible.key)}")
+            self.at.selectbox(key=TeamView._doctor_responsible.key).select(args[1]).run()
+
+            logger.info(f"{self.at.multiselect(key=TeamView._profissionals.key)}")
+            self.at.multiselect(key=TeamView._profissionals.key).select(args[2]).run()
+
+        f(['Team Delta - 3', "Dr. Victor - 112", "Dr. Oscar - 111"])
+
+        logger.info(f"{self.at.text_input(key=TeamView._new_team_name.key)}")
+        self.at.text_input(key=TeamView._new_team_name.key).input('Team New').run()
+
+        logger.info(f"{self.at.button(key=TeamView._add_team_button.key)}")
+        self.at.button(key=TeamView._add_team_button.key).click().run()
+
+        f(['Team New - 6', "Dr. Victor - 112", "Dr. Oscar - 111"])
 
 
 

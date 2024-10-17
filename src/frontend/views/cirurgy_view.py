@@ -78,7 +78,7 @@ class CirurgyView:
     def view_edit_patient(self, cirurgy: CirurgyEntity, on_change: Callable):  # , logc: LogC):
         if cirurgy:
             self.edit_patient.text_input("Nome do paciente", key=CirurgyView.change_patient_name.key,
-                                         value=cirurgy.model.patient.name, on_change=on_change)  # , kwargs={"logc": logc})
+                                         value=cirurgy.model.patient.patient_name, on_change=on_change)  # , kwargs={"logc": logc})
         else:
             self.edit_patient.text_input("Nome do paciente", disabled=True)
 

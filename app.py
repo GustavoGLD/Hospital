@@ -1,1291 +1,832 @@
-import copy
-import json
 import os
-import time
-from collections import defaultdict
-from typing import Callable, Union
-
-import jsbeautifier
-import pandas as pd
-import streamlit as st
-
-from algoritmo import Equipe, Cirurgia, Sala, Otimizador, Mediador, Algoritmo, DefaultConfig
-from difflib import SequenceMatcher
-
-
-def similar(a, b):
-    return SequenceMatcher(None, a, b).ratio()
-
-
-if __name__ == '__main__':
-    st.set_page_config(
-        page_title="Agenda Inteligente de Cirurgias",
-        page_icon="🏥",
-        layout="wide"
-    )
+from copy import deepcopy
+from datetime import datetime, timedelta
+from typing import Optional, List, TypeVar, Type, Sequence
+from unittest.mock import MagicMock
 
 from loguru import logger
+from sqlmodel import Field, SQLModel, Relationship
 
-from src.utils import MyLogger, log_func
-from src.utils.gulogger.logcontext import LogC
+from moonlogger import MoonLogger
+from dotenv import load_dotenv
 
-if '__defined_loguru_config__' not in st.session_state and __name__ == '__main__':
-    logger.add("loguru.log", level="TRACE", serialize=True)
-    st.session_state['__defined_loguru_config__'] = True
+load_dotenv()
 
-
-if __name__ == '__main__':
-    with st.expander("Configurações", expanded=False):
-        st.write("Distribuição das Cirurgias")
-
-        st.slider("1. Número de gerações", min_value=1, max_value=500, value=DefaultConfig.num_generations, step=1, key="num_generations")
-        st.slider("1. Solução por população", min_value=1, max_value=150, value=DefaultConfig.sol_per_pop, step=1, key="sol_per_pop")
-        st.slider("1. Número de pais para cruzamento", min_value=1, max_value=st.session_state["sol_per_pop"],
-                  value=DefaultConfig.num_parents_mating, step=1, key="num_parents_mating")
-
-        with st.container(border=True):
-            st.write("Configurações avançadas")
-            st.selectbox("1. Tipo de cruzamento", ["single_point", "uniform", "two_points", "scattered"],
-                         key="crossover_type")
-            st.selectbox("1. Tipo de mutação", ["random", "adaptive"], key="mutation_type")
-            st.slider("1. Porcentagem de genes mutados", min_value=1, max_value=100, value=DefaultConfig.mutation_percent_genes, step=1,
-                      key="mutation_percent_genes")
-            st.selectbox("1. Tipo de seleção de pais", ["sss", "tournament", "rank"], key="parent_selection_type")
-            st.slider("1. Número de pais mantidos", min_value=-1, max_value=st.session_state['sol_per_pop'],
-                      value=5, step=1, key="keep_parents")
-
-    st.markdown('---')
+T = TypeVar("T")
+M = TypeVar("M", bound=SQLModel)
 
 
-class ProfessionalView:
-    def __init__(self, cntr=st):
-        cntr.write("Profissionais 👨‍⚕️")
-
-        col1, col2 = cntr.columns(2, gap="small")
-
-        with col1.container(border=True):
-            self.professionals_selection = st.container()
-            st.divider()
-            st.write("Novo Profissional")
-
-            col1_1, col1_2 = st.columns([2, 1])
-
-            with col1_1:
-                self.new_professional_name = st.container()
-            with col1_2:
-                self.add_professional_button = st.container()
-
-            self.creation_warns = st.empty()
-
-        with col2.container(border=True):
-            self.professional_teams = st.container()
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_selection(self, professionals: list[str], on_change: Callable, logc: LogC, default=None) -> str:
-        disable = True if not professionals else False
-        if not disable:
-            with self.professionals_selection:
-                st.selectbox("Selecione um profissional", professionals, index=default, on_change=on_change,
-                             key="_selected_professional", disabled=disable, kwargs={"logc": logc})
-        else:
-            with self.professionals_selection:
-                st.selectbox("Selecione um profissional", professionals, disabled=disable)
-        return st.session_state['_selected_professional']
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_new_professional_name(self, logc: LogC) -> str:
-        return self.new_professional_name.text_input("Nome do novo profissional", label_visibility="collapsed",
-                                                     key="_new_professional_name")
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_add_professional_button(self, professional_view: "ProfessionalView", on_click: Callable,
-                                     logc: LogC) -> bool:
-        return self.add_professional_button.button(
-            "Adicionar Profissional",
-            on_click=on_click,
-            use_container_width=True,
-            kwargs={"professional_view": professional_view, "logc": logc}
-        )
-
-    @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_add_error_duplicate(self, logc: LogC):
-        self.creation_warns.error("Nome de profissional já existente.")
-
-    @MyLogger.decorate_function(add_extra=["ProfessionalView"])
-    def view_professional_teams(self, all_teams: list[str], teams_default: list[str], on_change: Callable, logc: LogC):
-        disable = True if not st.session_state['selected_professional'] else False
-        # logger.debug(f"{teams_default=}")
-        self.professional_teams.write("Equipes")
-        self.professional_teams.multiselect(
-            f"Selecione as equipes",
-            options=all_teams,
-            default=teams_default,
-            key="_multiselected_teams",
-            disabled=disable,
-            on_change=on_change,
-            kwargs={"logc": logc}
-        )
+class LogConfig:
+    algorithm_details: bool = True
 
 
-if 'selected_team_index' not in st.session_state:
-    st.session_state['selected_team_index'] = None
+class Team(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    name: str
 
-if 'doctor_responsible_default' not in st.session_state:
-    st.session_state['doctor_responsible_default'] = ""
-
-if 'professional_id_counter' not in st.session_state:
-    st.session_state['professional_id_counter'] = [0]
-
-if 'teams_multiselector_default' not in st.session_state:
-    st.session_state['teams_multiselector_default'] = []
-
-if 'professionals' not in st.session_state:
-    st.session_state['professionals'] = []
-
-if 'team_id_counter' not in st.session_state:
-    st.session_state['team_id_counter'] = [0]
-
-if 'teams' not in st.session_state:
-    st.session_state['teams'] = []
+    professionals: List["Professional"] = Relationship(back_populates="team")
+    possible_surgeries: List["SurgeryPossibleTeams"] = Relationship(back_populates="team")
+    schedules: List["Schedule"] = Relationship(back_populates="team")
 
 
-class ProfessionalModel:
-    id_counter = st.session_state['professional_id_counter']
-    professionals = st.session_state['professionals']
+class Professional(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    name: str
+    team_id: Optional[int] = Field(default=None, foreign_key="team.id")
 
-    def __init__(self, name, **kwargs):
-        self.name = name
-        self.id = ProfessionalModel.id_counter[0]
-        self.teams = []
-        self.responsible_teams = []
+    team: Optional[Team] = Relationship(back_populates="professionals")
 
-        if self.is_valid():
-            ProfessionalModel.id_counter[0] += 1
-            ProfessionalModel.professionals.append(self)
-        else:
-            raise ValueError(f"Professional {name} is not valid")
 
-    @property
-    def vteams(self) -> list["TeamModel"]:
-        return self.teams
+class Room(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    name: str
 
-    @vteams.setter
-    def vteams(self, teams: list["TeamModel"]):
-        self.clear_teams()
-        for team in teams:
-            self.add_team(team)
+    schedules: List["Schedule"] = Relationship(back_populates="room")
 
-    def add_team(self, team: "TeamModel"):
-        if team not in self.teams:
-            self.teams.append(team)
-        if self not in team.vprofessionals:
-            team.add_professional(self)
 
-    def remove_team(self, team: "TeamModel"):
-        if team in self.teams:
-            self.teams.remove(team)
-        if self in team.vprofessionals:
-            team.remove_professional(self)
+class Patient(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    name: str
 
-    def clear_teams(self):
-        logger.debug(f"Clearing teams: {self.teams}")
-        for team in copy.copy(self.vteams):
-            self.remove_team(team)
 
-    def is_valid(self) -> bool:
-        if self.name == "":
-            return False
-        if self.name in [p.name for p in ProfessionalModel.professionals]:
-            return False
-        return True
+class Surgery(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    name: str
+    duration: int
+    priority: int
+    patient_id: Optional[int] = Field(default=None, foreign_key="patient.id")
+
+    patient: Optional[Patient] = Relationship()
+    schedule: Optional["Schedule"] = Relationship(back_populates="surgery")
+    possible_teams: List["SurgeryPossibleTeams"] = Relationship(back_populates="surgery")
+
+
+class Schedule(SQLModel, table=True):
+    start_time: datetime
+
+    surgery_id: int = Field(foreign_key="surgery.id", primary_key=True)
+    room_id: int = Field(foreign_key="room.id")
+    team_id: int = Field(foreign_key="team.id")
+
+    surgery: Surgery = Relationship(back_populates="schedule")
+    room: Room = Relationship(back_populates="schedules")
+    team: Team = Relationship(back_populates="schedules")
+
+
+class SurgeryPossibleTeams(SQLModel, table=True):
+    __tablename__ = "surgery_possible_teams"
+    surgery_id: int = Field(foreign_key="surgery.id", primary_key=True)
+    team_id: int = Field(foreign_key="team.id", primary_key=True)
+
+    surgery: Surgery = Relationship(back_populates="possible_teams")
+    team: Team = Relationship(back_populates="possible_surgeries")
+
+
+from datetime import datetime
+from sqlmodel import Session, select
+
+
+class InMemoryCache:
+    def __init__(self, session: Optional[Session] = None):
+        """Inicializa o cache e carrega os dados em memória de forma dinâmica."""
+        if not hasattr(self, 'data'):
+            self.data = {cls.__tablename__: [] for cls in self.get_table_classes()}
+            if session:
+                self.load_all_data(session)
 
     @staticmethod
-    def get_names() -> list[str]:
-        return [professional.name for professional in ProfessionalModel.professionals]
+    def get_table_classes() -> List[Type[SQLModel]]:
+        """Retorna uma lista de classes de tabelas que devem ser carregadas no cache."""
+        return [Team, Professional, Patient, Schedule, Surgery, SurgeryPossibleTeams, Room]
 
-    @staticmethod
-    def get_names_with_id() -> list[str]:
-        return [f"{professional.name} - {professional.id}" for professional in ProfessionalModel.professionals]
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def load_all_data(self, session: Session):
+        """Carrega dinamicamente todas as tabelas definidas no cache."""
+        for model in self.get_table_classes():
+            table_name = model.__tablename__
+            self.data[table_name] = self.load_table(session, model)
 
-    @staticmethod
-    def get_by_id(_id: int) -> "ProfessionalModel":
-        for professional in ProfessionalModel.professionals:
-            if professional.id == _id:
-                return professional
-        raise ValueError(f"Professional '{_id}' not found: {ProfessionalModel.professionals}")
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_by_id(self, table: Type[M], _id: int) -> M:
+        assert type(_id) == int, f"ID {_id} deve ser um inteiro."
+        for row in self.get_table(table):
+            if row.id == _id:
+                return row
+        raise ValueError(f"ID {_id} não encontrado na tabela '{table.__tablename__}'")
 
-    @staticmethod
-    def get_teams_remaining() -> list[str]:
-        return [team.name for team in TeamModel.teams if team not in st.session_state['selected_professional'].vteams]
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def load_table(self, session: Session, model: Type[T]) -> Sequence[Type[T]]:
+        """Carrega uma tabela específica para a memória."""
+        statement = select(model)
+        return session.exec(statement).all()
 
-    def __repr__(self):
-        return f"{self.id}"
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def refresh_cache(self, session: Session):
+        """Atualiza o cache de todas as tabelas dinamicamente."""
+        self.data.clear()
+        self.load_all_data(session)
 
-    def get_dict(self) -> dict:
-        return self.__dict__
+    def get_table(self, table: Type[M]) -> List[M]:
+        """Retorna uma cópia dos dados da tabela especificada para evitar alterações no cache."""
+        if table.__tablename__ not in self.data:
+            raise ValueError(f"Tabela '{table.__tablename__}' não encontrada no cache.")
+        return deepcopy(self.data.get(table.__tablename__, []))
 
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def is_team_busy(self, team_id: int, check_time: datetime) -> bool:
+        """
+        Verifica se uma equipe está ocupada no horário fornecido, utilizando dados do cache.
 
-if 'default_selected_professional_index' not in st.session_state:
-    st.session_state['default_selected_professional_index'] = None
+        Args:
+            team_id (int): ID da equipe a ser verificada.
+            check_time (datetime): Horário para verificar a disponibilidade.
 
-if 'default_selected_team_index' not in st.session_state:
-    st.session_state['default_selected_team_index'] = None
-
-
-class ProfessionalControl:
-    def __init__(self, logc: LogC):
-        self.professional_view = ProfessionalView(st.container(border=True))
-
-        st.session_state['selected_professional'] = self.select_professional(logc=logc)
-        logger.debug(st.session_state['selected_professional'])
-
-        self.professional_view.view_professional_teams(
-            all_teams=Data.get_teams_names(),
-            teams_default=st.session_state['teams_multiselector_default'],
-            on_change=self.on_change_teams,
-            logc=logc
-        )
-
-    @MyLogger.decorate_function(add_extra=["ProfessionalControl"])
-    def select_professional(self, logc: LogC = None) -> Union[ProfessionalModel, None]:
-        self.professional_view.view_new_professional_name(logc=logc)
-        self.professional_view.view_add_professional_button(
-            on_click=self.on_click_add_professional,
-            professional_view=self.professional_view,
-            logc=logc
-        )
-
-        selected_name = self.professional_view.view_selection(
-            ProfessionalModel.get_names_with_id(),
-            on_change=self.on_change_professional,
-            default=st.session_state['default_selected_professional_index'],
-            logc=logc
-        )
-
-        if selected_name:
-            return ProfessionalModel.get_by_id(int(selected_name.split(" - ")[1]))
-        else:
-            logger.opt(depth=0).warning(f'No professional named "{selected_name}"', **logc)
-            return None
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["ProfessionalControl"])
-    def on_click_add_professional(professional_view: ProfessionalView, logc: LogC):
-        selected_name: str = st.session_state['_new_professional_name']
-        assert selected_name is not None and isinstance(selected_name, str)
-
-        if selected_name in ProfessionalModel.professionals:
-            professional_view.view_add_error_duplicate(logc=logc)
-        else:
-            st.session_state['default_selected_professional_index'] = len(
-                list(Data.get_dict()['professionals'].keys())
-            )
-            ProfessionalModel(name=selected_name)
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["ProfessionalControl"])
-    def on_change_professional(logc: LogC):
-        id = int(st.session_state['_selected_professional'].split(" - ")[1])
-        st.session_state['selected_professional'] = ProfessionalModel.get_by_id(id)
-        logger.debug(f"{st.session_state['selected_professional'].name=}", **logc)
-
-        st.session_state['teams_multiselector_default'] = [
-            team.name for team in st.session_state['selected_professional'].vteams
+        Returns:
+            bool: True se a equipe estiver ocupada, False caso contrário.
+        """
+        # Filtra cirurgias associadas à equipe específica no cache
+        surgery_team_links = [
+            st for st in self.data['surgery_possible_teams']
+            if st.team_id == team_id
         ]
 
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["ProfessionalControl"])
-    def on_change_teams(logc: LogC):
-        teams_str: list[str] = st.session_state['_multiselected_teams']
+        # Encontra os agendamentos associados às cirurgias da equipe
+        schedules = [
+            schedule for schedule in self.data['schedule']
+            if any(st.surgery_id == schedule.surgery_id for st in surgery_team_links)
+        ]
+        logger.debug(f"Checking {schedules}")
+        # Verifica se o horário fornecido coincide com algum agendamento
+        for schedule in schedules:
+            logger.debug(f"Checking schedule: {schedule} {schedule.start_time} {schedule.surgery.duration}")
+            start_time = schedule.start_time
+            end_time = start_time + timedelta(minutes=schedule.surgery.duration)
 
-        teams = [TeamModel.get_by_name(team) for team in teams_str]
-        # logger.debug(f"{teams=}")
-        st.session_state['selected_professional'].vteams = teams
+            if start_time <= check_time < end_time:
+                return True  # A equipe está ocupada
 
+        return False  # A equipe está disponível
 
-class TeamView:
-    def __init__(self, cntr=st):
-        cntr.write("Equipes 👥")
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_available_teams(self, check_time: datetime) -> List[Team]:
+        """
+        Retorna todas as equipes disponíveis em um horário específico.
 
-        col1, col2 = cntr.columns(2, gap="small")
+        Args:
+            check_time (datetime): Horário para verificar a disponibilidade das equipes.
 
-        with col1.container(border=True):
-            self.selecion_warns = st.empty()
+        Returns:
+            List[Team]: Lista de equipes disponíveis no horário especificado.
+        """
+        available_teams = []
 
-            self.teams_selection = st.container()
-            st.divider()
-            st.write("Nova Equipe")
+        # Itera sobre todas as equipes no cache
+        for team in self.get_table(Team):
+            # Se a equipe não está ocupada no horário especificado, adicione-a à lista de disponíveis
+            if not self.is_team_busy(team.id, check_time):
+                available_teams.append(team)
 
-            col1_1, col1_2 = st.columns([2, 1])
+        return available_teams
 
-            with col1_1:
-                self.new_team_name = st.container()
-            with col1_2:
-                self.add_team_button = st.container()
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_next_surgery(self, surgeries: list[Surgery], team: Team) -> Surgery | SQLModel | None:
+        """Retorna a próxima cirurgia a ser realizada por uma equipe específica."""
+        possibles = self.data.get(SurgeryPossibleTeams.__tablename__)
+        possibles = [psbl for psbl in possibles if psbl.team_id == team.id]
 
-            self.creation_warns = st.empty()
-
-        with col2.container(border=True):
-            self.doctor_responsible = st.container()
-            self.profissionals = st.container()
-            with st.container(border=True):
-                self.scheduling = st.container()
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_scheduling(self, scheduling: dict[str, list], logc: LogC):
-        self.scheduling.write("Agendamento")
-        self.scheduling.dataframe(scheduling, use_container_width=True)
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_selection(self, teams: list[str], on_change: Callable, logc: LogC, default=None) -> str:
-        disable = True if not teams else False
-        if not disable:
-            with self.teams_selection:
-                st.selectbox("Selecione uma equipe", teams, index=default, on_change=on_change, key="_selected_team",
-                             disabled=disable)
-                return st.session_state['_selected_team']
-        else:
-            with self.teams_selection:
-                st.selectbox("Selecione uma equipe", teams, disabled=disable)
-                return ''
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_new_team_name(self, logc: LogC) -> str:
-        return self.new_team_name.text_input("Nome da nova equipe", label_visibility="collapsed", key="_new_team_name")
-
-    @log_func
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_add_team_button(self, team_view: "TeamView", on_click: Callable, logc: LogC) -> bool:
-        return self.add_team_button.button("Adicionar Equipe", on_click=on_click, use_container_width=True,
-                                           kwargs={"team_view": team_view, "logc": logc})
-
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_add_error_duplicate(self, logc: LogC):
-        self.creation_warns.error("Nome de equipe já existente.")
-
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_doctor_responsible(self, on_change: Callable, doctor: "ProfessionalModel", team: "TeamModel",
-                                logc: LogC) -> None:
-        disable = True if not st.session_state['selected_team'] else False
-        options = [f"{prof.name} - {prof.id}" for prof in team] if team else []
-        # logger.debug(f"{doctor.name if doctor else None}", **logc)
-        if not disable:
-            self.doctor_responsible.selectbox(
-                "Médico responsável",
-                options=options,
-                index=options.index(f"{doctor.name} - {doctor.id}") if doctor else 0,
-                key="_doctor_responsible",
-                on_change=on_change,
-                disabled=disable,
-                kwargs={"logc": logc},
-            )
-        else:
-            self.doctor_responsible.selectbox(
-                "Médico responsável",
-                options=options,
-                disabled=True
-            )
-
-    @MyLogger.decorate_function(add_extra=["TeamsView"])
-    def view_profissionals(self, selecteds: list[str], options: list, on_change: Callable, logc: LogC):
-        disable = True if not st.session_state['selected_team'] else False
-        self.profissionals.multiselect(
-            "Selecione os profissionais",
-            options,
-            selecteds,
-            key="_profissionals",
-            disabled=disable,
-            on_change=on_change,
-            kwargs={"logc": logc},
-        )
-
-
-class TeamModel(Equipe):
-    id_counter: list[int] = st.session_state['team_id_counter']
-    teams: list["TeamModel"] = st.session_state['teams']
-
-    def __init__(self, name, professionals: list[ProfessionalModel] = None, doctor_responsible=None, **kwargs):
-        super().__init__(nome=name)
-        self.name = name
-        self.professionals = []
-        self.doctor_responsible = None
-
-        self.id = TeamModel.id_counter[0]
-        TeamModel.id_counter[0] += 1
-
-        if professionals:
-            try:
-                professionals = [int(professional) for professional in professionals]
-            except Exception:
-                pass
-
-        if professionals:
-            self.add_professionals(professionals)
-
-        if doctor_responsible:
-            try:
-                doctor_responsible = int(doctor_responsible)
-            except Exception:
-                pass
-
-        if doctor_responsible:
-            self.set_doctor_responsible(doctor_responsible)
-        TeamModel.teams.append(self)
-
-    def __iter__(self):
-        return iter(self.vprofessionals)
-
-    @property
-    def vprofessionals(self) -> list[ProfessionalModel]:
-        return self.professionals
-
-    @vprofessionals.setter
-    def vprofessionals(self, professionals: Union[list[ProfessionalModel], list[int]]):
-        self.clear_professionals()
-        for professional in copy.copy(professionals):
-            self.add_professional(professional)
-
-    def clear_professionals(self):
-        for professional in copy.copy(self.vprofessionals):
-            self.remove_professional(professional)
-
-    def add_professional(self, professional: Union[ProfessionalModel, int]):
-        if isinstance(professional, int):
-            professional = ProfessionalModel.professionals[professional]
-
-        if professional not in self.vprofessionals:
-            self.vprofessionals.append(professional)
-            logger.debug(f"Adding {professional.name} to {self.name}")
-        else:
-            logger.debug(f"Professional {professional.name} already in {self.name}")
-        if self not in professional.vteams:
-            professional.add_team(self)
-
-    def add_professionals(self, professionals: Union[list[ProfessionalModel], list[int]]):
-        for professional in professionals:
-            if isinstance(professional, int):
-                professional = ProfessionalModel.professionals[professional]
-
-            self.add_professional(professional)
-
-    def remove_professional(self, professional: Union[ProfessionalModel, int]):
-        if isinstance(professional, int):
-            professional = ProfessionalModel.professionals[professional]
-
-        if professional in self.vprofessionals:
-            self.vprofessionals.remove(professional)
-            logger.debug(f"Removing {professional.name} from {self.name}")
-        else:
-            logger.debug(f"Professional {professional.name} not in {self.name}")
-        if self in professional.vteams:
-            professional.remove_team(self)
-
-    def set_doctor_responsible(self, professional: Union[ProfessionalModel, int]):
-        if professional is None:
-            return
-        if isinstance(professional, int):
-            professional = ProfessionalModel.professionals[professional]
-        self.doctor_responsible = professional
-        professional.responsible_teams.append(self)
-
-    def get_professionals_names(self) -> list[str]:
-        return [professional.name for professional in self.vprofessionals]
-
-    def get_professionals_names_with_id(self) -> list[str]:
-        return [f"{professional.name} - {professional.id}" for professional in self.vprofessionals]
-
-    @staticmethod
-    def get_names() -> list[str]:
-        return [team.name for team in TeamModel.teams]
-
-    @staticmethod
-    def get_by_name(name: str) -> "TeamModel":
-        for team in TeamModel.teams:
-            if team.name == name:
-                return team
-        raise ValueError(f"Team {name} not found: {TeamModel.teams}")
-
-    @staticmethod
-    def get_by_id(_id: int) -> "TeamModel":
-        for team in TeamModel.teams:
-            if team.id == int(_id):
-                return team
-        raise ValueError(f"Team '{_id}' not found: {TeamModel.teams}")
-
-    def __str__(self):
-        return f"{self.name}"
-
-    def __repr__(self):
-        return str(self)
-
-    def get_dict(self) -> dict:
-        return {
-            "name": self.name,
-            "professionals": [professional.get_dict() for professional in self.vprofessionals],
-            "doctor_responsible": self.doctor_responsible.get_dict() if self.doctor_responsible else None,
-            "id": self.id
-        }
-
-
-class TeamControl:
-    def __init__(self, logc: LogC = None):
-        self.team_view = TeamView(st.container(border=True))
-
-        st.session_state['selected_team']: TeamModel = self.select_team(logc=logc)
-        logger.debug(st.session_state['selected_team'])
-
-        selected_team: TeamModel = st.session_state['selected_team']
-
-        self.team_view.view_profissionals(
-            selected_team.get_professionals_names_with_id() if selected_team else [],
-            ProfessionalModel.get_names_with_id(),
-            on_change=self.on_change_professionals,
-            logc=logc,
-        )
-
-        # logger.debug(f"{st.session_state['doctor_responsible_default']=}")
-        self.team_view.view_doctor_responsible(
-            on_change=self.on_change_responsible,
-            doctor=st.session_state['doctor_responsible_default'],
-            team=st.session_state['selected_team'],
-            logc=logc
-        )
-
-        self.make_scheduling(logc=logc)
-
-    @MyLogger.decorate_function(add_extra=["TeamsControl"])
-    def make_scheduling(self, logc: LogC):
-        team = st.session_state['selected_team']
-        if not team:
-            return
-        scheduling = {"horarios": [], "sala": [], "cirurgia": [], "duracao": [], "paciente": []}
-        for surgery in team.cirurgias:
-            scheduling["horarios"].append(surgery.tempo_inicio)
-            scheduling["sala"].append(surgery.sala)
-            scheduling["cirurgia"].append(surgery.nome)
-            scheduling["duracao"].append(surgery.duracao)
-            scheduling["paciente"].append(surgery.patient_name)
-        self.team_view.view_scheduling(scheduling, logc=logc)
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["TeamsControl"])
-    def on_change_responsible(logc: LogC):
-        id = int(st.session_state['_doctor_responsible'].split(" - ")[1])
-        st.session_state['selected_team'].set_doctor_responsible(id)
-        st.session_state['doctor_responsible_default'] = ProfessionalModel.get_by_id(id)
-        # logger.debug(f"{st.session_state['doctor_responsible_default'].name=}", **logc)
-
-    @staticmethod
-    def on_change_team():
-        st.session_state['doctor_responsible_default'] = \
-            Data.get_team_by_name(st.session_state['_selected_team']).doctor_responsible
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["TeamsControl"])
-    def on_change_professionals(logc: LogC):
-        professionals_str: list[str] = st.session_state['_profissionals']
-        professionals = [ProfessionalModel.get_by_id(int(professional.split(" - ")[1])) for professional in
-                         professionals_str]
-        st.session_state['selected_team'].vprofessionals = professionals
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["TeamsControl"])
-    def on_click_add_team(team_view: TeamView, logc: LogC):
-        selected_name: str = st.session_state['_new_team_name']
-        assert selected_name is not None and isinstance(selected_name, str)
-
-        if selected_name in Data.get_teams_names():
-            team_view.view_add_error_duplicate(logc=logc)
-        else:
-            st.session_state['default_selected_team_index'] = len(
-                list(Data.get_dict()['teams'].keys())
-            )
-            TeamModel(name=selected_name, professionals=[], doctor_responsible=None)
-            st.session_state['doctor_responsible_default'] = None
-
-    @MyLogger.decorate_function(add_extra=["TeamsControl"])
-    def select_team(self, logc: LogC = None) -> Union[TeamModel, None]:
-        self.team_view.view_new_team_name(logc=logc)
-        self.team_view.view_add_team_button(team_view=self.team_view, on_click=self.on_click_add_team, logc=logc)
-
-        selected_name = self.team_view.view_selection(Data.get_teams_names(),
-                                                      self.on_change_team,
-                                                      default=st.session_state['default_selected_team_index'],
-                                                      logc=logc)
-        logger.debug(selected_name)
-        if selected_name:
-            return Data.get_team_by_name(selected_name)
-        else:
-            logger.opt(depth=0).warning(f'No team named "{selected_name}"', **logc)
+        if not possibles:
+            logger.error(f"this team didn't have any corresponding surgery "
+                         f"{team.name} (ID={team.id}): "
+                         f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
             return None
 
-    def load_teams(self):
-        self.teams = pd.read_csv("teams.csv")
+        possibles = list(filter(lambda x: x.surgery_id in [surgery.id for surgery in surgeries], possibles))
 
-    def save_teams(self):
-        self.teams.to_csv("teams.csv", index=False)
-
-
-if 'room_id_counter' not in st.session_state:
-    st.session_state['room_id_counter'] = [0]
-
-if 'rooms' not in st.session_state:
-    st.session_state['rooms'] = []
-
-if 'selected_room' not in st.session_state:
-    st.session_state['selected_room'] = None
-
-if 'default_selected_room_index' not in st.session_state:
-    st.session_state['default_selected_room_index'] = None
-
-
-class RoomView:
-    def __init__(self, cntr=st):
-        cntr.write("Salas 🏥")
-
-        col1, col2 = cntr.columns(2, gap="small")
-
-        with col1.container(border=True):
-            self.rooms_selection = st.container()
-            st.divider()
-            st.write("Adicionar uma nova sala")
-
-            col1_1, col1_2 = st.columns([2, 1])
-
-            with col1_1:
-                self.new_room_name = st.container()
-            with col1_2:
-                self.add_room_button = st.container()
-
-            st.write("Adicionar várias novas salas")
-            col2_1, col2_2 = st.columns([2, 1])
-            with col2_1:
-                self.new_rooms_count = st.container()
-            with col2_2:
-                self.add_all_romms_buttons = st.container()
-
-            self.creation_warns = st.empty()
-
-        with col2.container(border=True):
-            self.room_list = st.container()
-
-            with st.container(border=True):
-                self.scheduling = st.container()
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_scheduling(self, scheduling: dict[str, list], logc: LogC):
-        self.scheduling.write("Agendamento")
-        self.scheduling.dataframe(scheduling, use_container_width=True)
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_selection(self, rooms: list[str], on_change: Callable, logc: LogC, default=None) -> str:
-        disable = True if not rooms else False
-        if not disable:
-            with self.rooms_selection:
-                st.selectbox("Selecione uma sala", rooms, index=default, on_change=on_change, key="_selected_room",
-                             disabled=disable, kwargs={"logc": logc})
-                return st.session_state['_selected_room']
-        else:
-            with self.rooms_selection:
-                st.selectbox("Selecione uma sala", rooms, disabled=disable)
-                return ''
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_new_room_name(self, logc: LogC) -> str:
-        return self.new_room_name.text_input("Nome da nova sala", label_visibility="collapsed", key="_new_room_name")
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_new_rooms_count(self, logc: LogC) -> int:
-        return self.new_rooms_count.number_input("Quantidade de salas", key="_new_rooms_count", min_value=1, value=1,
-                                                 label_visibility="collapsed")
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_add_room_button(self, room_view: "RoomView", on_click: Callable, logc: LogC) -> bool:
-        return self.add_room_button.button("Adicionar Sala", on_click=on_click, use_container_width=True,
-                                           kwargs={"room_view": room_view, "logc": logc})
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_add_all_rooms_button(self, room_view: "RoomView", on_click: Callable, logc: LogC) -> bool:
-        return self.add_all_romms_buttons.button("Adicionar todas as salas", on_click=on_click,
-                                                 use_container_width=True,
-                                                 kwargs={"room_view": room_view, "logc": logc})
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_add_error_duplicate(self, logc: LogC):
-        self.creation_warns.error("Nome de sala já existente.")
-
-    @MyLogger.decorate_function(add_extra=["RoomsView"])
-    def view_room_list(self, rooms: list[str], on_change: Callable, logc: LogC):
-        self.room_list.multiselect(
-            "Selecione as salas",
-            rooms,
-            key="_multiselected_rooms",
-            on_change=on_change,
-            kwargs={"logc": logc},
-        )
-
-
-class RoomModel(Sala):
-    id_counter: list[int] = st.session_state['room_id_counter']
-    rooms: list["RoomModel"] = st.session_state['rooms']
-
-    def __init__(self, name, **kwargs):
-        super().__init__(name)
-        self.name = name
-        self.id = RoomModel.id_counter[0]
-        RoomModel.id_counter[0] += 1
-        RoomModel.rooms.append(self)
-
-    @staticmethod
-    def get_names() -> list[str]:
-        return [room.name for room in RoomModel.rooms]
-
-    @staticmethod
-    def get_by_name(name: str) -> "RoomModel":
-        for room in RoomModel.rooms:
-            if room.name == name:
-                return room
-        raise ValueError(f"Room {name} not found: {[r.name for r in RoomModel.rooms]}")
-
-    @staticmethod
-    def get_by_id(_id: int) -> "RoomModel":
-        for room in RoomModel.rooms:
-            if room.id == int(_id):
-                return room
-        raise ValueError(f"Room '{_id}' not found: {RoomModel.rooms}")
-
-    def __str__(self):
-        return f"{self.id}"
-
-    def __repr__(self):
-        return str(self)
-
-    def get_dict(self) -> dict:
-        return self.__dict__
-
-
-class RoomControl:
-    def __init__(self, logc: LogC = None):
-        self.room_view = RoomView(st.container(border=True))
-
-        st.session_state['selected_room']: RoomModel = self.select_room(logc=logc)
-        logger.debug(st.session_state['selected_room'])
-
-        selected_room: RoomModel = st.session_state['selected_room']
-
-        self.room_view.view_new_rooms_count(logc=logc)
-        self.room_view.view_add_all_rooms_button(room_view=self.room_view, on_click=self.on_click_add_all_rooms,
-                                                 logc=logc)
-        # self.room_view.view_room_list(Data.get_rooms_names(), self.on_change_rooms, logc=logc)
-
-        self.make_scheduling(logc=logc)
-
-    @MyLogger.decorate_function(add_extra=["RoomsControl"])
-    def make_scheduling(self, logc: LogC):
-        room = st.session_state['selected_room']
-        if not room:
-            return
-        scheduling = {"horarios": [], "equipe": [], "cirurgia": [], "duracao": [], "paciente": []}
-        for surgery in room.cirurgias:
-            scheduling["horarios"].append(surgery.tempo_inicio)
-            scheduling["equipe"].append(surgery.equipe.nome)
-            scheduling["cirurgia"].append(surgery.nome)
-            scheduling["duracao"].append(surgery.duracao)
-            scheduling["paciente"].append(surgery.patient_name)
-        self.room_view.view_scheduling(scheduling, logc=logc)
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["RoomsControl"])
-    def on_click_add_all_rooms(room_view: RoomView, logc: LogC):
-        for i in range(st.session_state['_new_rooms_count']):
-            selected_name: str = f'Sala{len(Data.get_rooms_names())}'
-            if selected_name in Data.get_rooms_names():
-                selected_name = f'{selected_name}_{i}'
-            RoomModel(name=selected_name)
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["RoomsControl"])
-    def on_change_rooms(logc: LogC):
-        rooms_str: str = st.session_state['_selected_room']
-        st.session_state['selected_room'] = RoomModel.get_by_name(rooms_str)
-
-    @staticmethod
-    @MyLogger.decorate_function(add_extra=["RoomsControl"])
-    def on_click_add_room(room_view: RoomView, logc: LogC):
-        selected_name: str = st.session_state['_new_room_name']
-        assert selected_name is not None and isinstance(selected_name, str)
-
-        if selected_name in RoomModel.get_names():
-            room_view.view_add_error_duplicate(logc=logc)
-        else:
-            st.session_state['default_selected_room_index'] = len(
-                list(Data.get_dict()['rooms'].keys())
-            )
-            RoomModel(name=selected_name)
-
-    @MyLogger.decorate_function(add_extra=["RoomsControl"])
-    def select_room(self, logc: LogC = None) -> Union[RoomModel, None]:
-        self.room_view.view_new_room_name(logc=logc)
-        self.room_view.view_add_room_button(room_view=self.room_view, on_click=self.on_click_add_room, logc=logc)
-
-        selected_name = self.room_view.view_selection(RoomModel.get_names(),
-                                                      self.on_change_rooms,
-                                                      default=st.session_state['default_selected_room_index'],
-                                                      logc=logc)
-        logger.debug(selected_name)
-        if selected_name:
-            return RoomModel.get_by_name(selected_name)
-        else:
-            logger.opt(depth=0).warning(f'No room named "{selected_name}"', **logc)
+        if not possibles:
+            logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
             return None
 
+        surgeries = [surgery for surgery in surgeries if surgery.id in [psbl.surgery_id for psbl in possibles]]
+        surgeries = list(sorted(surgeries, key=lambda x: x.duration / (x.priority or 1)))
+        return surgeries[0]
 
-class CirurgyView:
-    def __init__(self, cntr=st):
-        cntr.write("Cirurgias 💉")
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
+        """Registra uma cirurgia no cache."""
+        logger.debug(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
+        self.data['schedule'].append(
+            Schedule(start_time=start_time, surgery_id=surgery.id, room_id=room.id, team_id=team.id)
+        )
 
-        self.col1, self.col2 = cntr.columns(2, gap="small")
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_surgery_by_time_and_room(self, time: datetime, room: Room) -> Surgery:
+        """Retorna a cirurgia agendada para um horário e sala específicos."""
+        assert self.get_table(Schedule), "No schedules found in cache."
+        for schedule in self.get_table(Schedule):
+            if schedule.start_time == time and schedule.room_id == room.id:
+                return self.get_by_id(Surgery, schedule.surgery_id)
+        raise ValueError(f"No surgery found for room {room.name} at {time}")
 
-        with self.col1:
-            self.list_cirurgies = st.container()
-            self.add_cirurgy_button = st.container()
-            self.select_cirurgy = st.container()
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_dict_surgeries_by_time(self, time: datetime) -> dict[str, str]:
+        """Retorna um dicionário com todas as cirurgias agendadas para um horário específico."""
+        _dict = {}
+        for room in self.get_table(Room):
+            surgery = self.get_surgery_by_time_and_room(time, room)
+            _dict[room.name] = f"{self.get_by_id(Team, surgery.id).name} - {surgery.name}"
+        return _dict
 
-        with self.col2:
-            self.edit_name = st.container()
-            self.edit_patient = st.container()
-            self.edit_duration = st.container()
-            self.edit_priority = st.container()
-            self.edit_possible_teams = st.container()
-            self.edit_possible_rooms = st.container()
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_next_vacancies(self) -> list[tuple[Room, datetime]]:
+        """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
+        vacancies = []
+        schedules = self.get_table(Schedule)
+        rooms = self.get_table(Room)
 
-    def view_edit_possible_rooms(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_possible_rooms.multiselect("Salas possíveis",
-                                                 Data.get_rooms_names_with_id(),
-                                                 key="_change_possible_rooms",
-                                                 default=Data.rooms_ids_to_rooms_with_name_and_id(cirurgy.possible_rooms),
-                                                 on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_possible_rooms.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
+        assert schedules, "No schedules found in cache."
+        assert rooms, "No rooms found in cache."
 
-    def view_edit_possible_teams(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_possible_teams.multiselect("Equipes possíveis",
-                                                 Data.get_teams_names_with_id(),
-                                                 key="_change_possible_teams",
-                                                 default=Data.teams_ids_to_teams_with_name_and_id(cirurgy.possible_teams),
-                                                 on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_possible_teams.multiselect("Equipes possíveis", Data.get_teams_names_with_id(), disabled=True)
+        for room in rooms:
+            local_schedules = [schedule for schedule in schedules if schedule.room_id == room.id]
+            assert local_schedules, f"No schedules found for room {room.name}: {schedules}"
+            last_schedule = max(local_schedules, key=lambda x: x.start_time)
+            vacancies.append((
+                room,
+                last_schedule.start_time + timedelta(
+                    minutes=self.get_by_id(Surgery, last_schedule.surgery_id).duration
+                )
+            ))
 
-    def view_edit_duration(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_duration.number_input("Duração (min)", key="_change_duration",
-                                        value=cirurgy.duration, on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_duration.number_input("Duração (min)", disabled=True)
+        return vacancies
 
-    def view_edit_priority(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_priority.number_input("Prioridade", key="_change_priority",
-                                        value=cirurgy.priority, on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_priority.number_input("Prioridade", disabled=True)
 
-    def view_edit_patient(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_patient.text_input("Nome do paciente", key="_change_patient_name",
-                                      value=cirurgy.patient_name, on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_patient.text_input("Nome do paciente", disabled=True)
+class Algorithm:
+    def __init__(self, cache: InMemoryCache = None):
+        self.cache = cache
+        self.surgeries: list[Surgery] = self.cache.get_table(Surgery)
+        self.next_vacany = datetime(2024, 11, 1, 10, 0, 0)
+        self.step = 0
+        self.rooms_according_to_time = []
 
-    def view_edit_name(self, cirurgy: "CirurgyModel", on_change: Callable, logc: LogC):
-        if cirurgy:
-            self.edit_name.text_input("Nome da cirurgia", key="_change_cirugy_name",
-                                      value=cirurgy.cirurgy_name, on_change=on_change, kwargs={"logc": logc})
-        else:
-            self.edit_name.text_input("Nome da cirurgia", disabled=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_next_vacany(self) -> datetime:
+        """Retorna a próxima vaga disponível."""
+        self._validate_cache()  # Validações iniciais
 
-    def view_selection(self, cirurgies: list[str], on_change: Callable, logc: LogC, default=None):
-        if cirurgies:
-            with self.select_cirurgy:
-                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, index=default, on_change=on_change,
-                             key="_selected_cirurgy_name",
-                             disabled=False, kwargs={"logc": logc})
-        else:
-            with self.select_cirurgy:
-                self.select_cirurgy.selectbox("Selecione uma cirurgia", cirurgies, disabled=True)
+        vacanies = self._get_sorted_vacancies()
+        vacanies_dt = [vacany[1] for vacany in vacanies]
 
-    def view_list_cirurgies(self, cirurgies: dict[str, Union[str, int, list]]):
-        column_config = {
-            'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True),
-            'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True),
-            'duration': st.column_config.NumberColumn(label="Duração (min)", required=True),
-            'priority': st.column_config.NumberColumn(label="Prioridade", required=True),
-            'possible_teams': st.column_config.ListColumn(label="Equipes possíveis"),
-            'possible_rooms': st.column_config.ListColumn(label="Salas possíveis"),
-        }
+        # Ajusta valores duplicados, se necessário
+        if self.next_vacany in vacanies_dt:
+            vacanies_dt = self._adjust_duplicate_vacancies(vacanies_dt)
 
-        if cirurgies:
-            self.list_cirurgies.dataframe(cirurgies, column_config=column_config)
-        else:
-            self.list_cirurgies.dataframe(cirurgies, column_config=column_config, use_container_width=True)
+        return self._get_next_available_time(vacanies_dt)
 
-    @st.dialog("Adicionar Cirurgia", width="large")
-    def view_add_cirurgy(self, on_submit: Callable):
-        cirurgy_name = st.data_editor({'cirurgy_name': ['']}, use_container_width=True, column_config={
-            'cirurgy_name': st.column_config.TextColumn(label="Nome do Procedimento", required=True)})['cirurgy_name'][
-            0]
-        patient_name = st.data_editor({'patient_name': ['']}, use_container_width=True, column_config={
-            'patient_name': st.column_config.TextColumn(label="Nome do Paciente", required=True)})['patient_name'][0]
-        duration = st.data_editor({'duration': [0]}, use_container_width=True, column_config={
-            'duration': st.column_config.NumberColumn(label="Duração (min)", required=True)})['duration'][0]
-        priority = st.data_editor({'priority': [0]}, use_container_width=True, column_config={
-            'priority': st.column_config.NumberColumn(label="Prioridade", required=True)})['priority'][0]
+    def _validate_cache(self):
+        """Valida se o cache possui as tabelas necessárias."""
+        if not self.cache.get_table(Schedule):
+            raise ValueError("No schedules found in cache")
+        if not self.cache.get_table(Room):
+            raise ValueError("No rooms found in cache.")
 
-        possible_teams = [x.split(' - ')[-1] for x in
-                          st.multiselect("Equipes possíveis", Data.get_teams_names_with_id())]
-        possible_rooms = st.multiselect("Salas possíveis", Data.get_rooms_names_with_id(), disabled=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _get_sorted_vacancies(self) -> list:
+        """Obtém e ordena as vagas disponíveis."""
+        vacanies = self.cache.get_next_vacancies()
+        if not vacanies:
+            raise ValueError("No vacancies found.")
+        return sorted(vacanies, key=lambda x: x[1])
 
-        submit = st.button("Adicionar Cirurgia", use_container_width=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _adjust_duplicate_vacancies(self, vacanies_dt: list[datetime]) -> list[datetime]:
+        """Ajusta valores duplicados na lista de tempos de vagas."""
+        adjusted_vacanies = []
+        previous_value = None
 
-        if submit and cirurgy_name and patient_name and duration and priority:
-            on_submit(
-                cirurgy_name=cirurgy_name, patient_name=patient_name, duration=duration,
-                priority=priority, possible_teams=possible_teams, possible_rooms=possible_rooms,
-                logc=logc
+        for i, val in enumerate(vacanies_dt):
+            if i > 0 and val == previous_value:
+                val = adjusted_vacanies[-1] + timedelta(seconds=1)
+            adjusted_vacanies.append(val)
+            previous_value = val
+
+        return adjusted_vacanies
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _get_next_available_time(self, vacanies_dt: list[datetime]) -> datetime:
+        """Retorna o próximo horário disponível baseado na lista ajustada."""
+        if LogConfig.algorithm_details:
+            logger.debug(f"{self.next_vacany=}")
+        if self.next_vacany in vacanies_dt:
+            index = vacanies_dt.index(self.next_vacany)
+            if index + 1 < len(vacanies_dt):
+                return vacanies_dt[index + 1]
+
+        return vacanies_dt[0] if vacanies_dt else self.next_vacany + timedelta(seconds=1)
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def execute(self, solution: list[int]):
+        self.step = 0
+
+        assert self.surgeries, "Sem cirurgias."
+        assert self.cache.get_table(Team), "Sem equipes."
+        assert self.cache.get_table(Room), "Sem salas."
+        assert len(solution) == len(self.surgeries), "Solução inválida."
+
+        while self.surgeries:
+            available_teams = self.cache.get_available_teams(check_time=self.next_vacany)
+            assert available_teams or self.step != 0, f"Sem equipes. {available_teams=}, {self.step=}"
+
+            if available_teams:
+                self.process_room(solution)
+                self.rooms_according_to_time.append({
+                    "Tempo": self.next_vacany,
+                    **self.cache.get_dict_surgeries_by_time(self.next_vacany)
+                })
+
+            self.next_vacany = self.get_next_vacany()
+            self.step += 1
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def process_room(self, solution: list[int], available_teams: List[Team]):
+        assert self.surgeries, "Sem cirurgias."
+        assert available_teams, "Sem equipes disponíveis."
+        assert self.cache.get_table(Room), "Sem salas."
+
+        for room in self.cache.get_table(Room):
+            if not self.cache.is_team_busy(room.id, self.next_vacany) and self.surgeries and available_teams:
+                try:
+                    team = available_teams[solution[self.step]]
+                except IndexError as e:
+                    logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=}")
+                    raise e
+                surgery = self.cache.get_next_surgery(self.surgeries, team)
+
+                if surgery:
+                    self.cache.register_surgery(surgery, team, room, self.next_vacany)
+                    self.surgeries.remove(surgery)
+                    self.step += 1
+                else:
+                    for team in available_teams:
+                        surgery = self.cache.get_next_surgery(self.surgeries, team)
+                        if surgery:
+                            self.cache.register_surgery(surgery, team, room, self.next_vacany)
+                            self.surgeries.remove(surgery)
+                            self.step += 1
+                            break
+                    else:
+                        for team in available_teams:
+                            surgery = self.cache.get_next_surgery(self.surgeries, team)
+                            if surgery:
+                                self.cache.register_surgery(surgery, team, room, self.next_vacany)
+                                self.surgeries.remove(surgery)
+                                self.step += 1
+                                break
+                        else:
+                            e = f"No surgery found for any team. {available_teams=}"
+                            logger.error(e)
+                            quit()
+            else:
+                logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
+
+
+from sqlmodel import create_engine, Session
+from datetime import datetime
+
+# Configuração do banco
+engine = create_engine(os.getenv("DB_URL"))
+
+import unittest
+from datetime import datetime, timedelta
+from sqlmodel import SQLModel, create_engine, Session
+from typing import List
+
+# Inicializando o cache em memória
+#cache = InMemoryCache()
+
+# Classes para simulação dos dados
+import unittest
+from datetime import datetime, timedelta
+from typing import List
+
+
+import unittest
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel, Session
+
+def setup_test_session():
+    engine = create_engine("sqlite:///:memory:")  # Banco de dados em memória
+    SQLModel.metadata.create_all(engine)  # Cria as tabelas
+    return Session(engine)
+
+
+class TestInMemoryCache(unittest.TestCase):
+    def setUp(self):
+        """Configura os dados de teste no cache antes de cada teste usando uma sessão em memória"""
+        self.session = setup_test_session()
+
+        # Criar e adicionar equipes na sessão
+        teams = [
+            Team(id=1, name="Equipe A"),
+            Team(id=2, name="Equipe B")
+        ]
+        self.session.add_all(teams)
+
+        # Criar e adicionar pacientes na sessão
+        patients = [
+            Patient(id=1, name="Paciente 1"),
+            Patient(id=2, name="Paciente 2")
+        ]
+        self.session.add_all(patients)
+
+        # Criar e adicionar cirurgias na sessão
+        surgeries = [
+            Surgery(id=1, name="Cirurgia 1", duration=60, patient_id=1, priority=1),
+            Surgery(id=2, name="Cirurgia 2", duration=120, patient_id=2, priority=2)
+        ]
+        self.session.add_all(surgeries)
+
+        # Criar possíveis equipes para as cirurgias
+        surgery_possible_teams = [
+            SurgeryPossibleTeams(surgery_id=1, team_id=1),
+            SurgeryPossibleTeams(surgery_id=2, team_id=2)
+        ]
+        self.session.add_all(surgery_possible_teams)
+
+        rooms = [
+            Room(id=1, name="Sala 1")
+        ]
+        self.session.add_all(rooms)
+
+        # Commit para salvar todos os dados na sessão
+        self.session.commit()
+
+        self.cache = InMemoryCache(session=self.session)
+        self.cache.load_all_data(self.session)
+
+        #logger.debug(f"Teams: {self.cache.load_table(self.session, Team)}")
+        #logger.debug(f"Schedule: {self.cache.load_table(self.session, Schedule)}")
+
+        now = datetime.now()
+
+        # Criar uma instância do algoritmo
+        self.algorithm = Algorithm(self.cache)
+        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.algorithm.next_vacany = now
+        self.algorithm.step = 0
+        assert self.algorithm.surgeries
+
+    def test_is_team_busy(self):
+        """Teste para verificar se uma equipe está ocupada em um horário específico"""
+        now = datetime.now()
+
+        schedules = [
+            Schedule(surgery_id=1, start_time=now, room_id=1, team_id=1),
+            Schedule(surgery_id=2, start_time=now + timedelta(hours=1), room_id=2, team_id=2)
+        ]
+        self.session.add_all(schedules)
+        self.session.commit()
+        self.cache.load_all_data(self.session)
+
+        assert self.cache.get_table(Schedule)
+
+        # Equipe 1 deve estar ocupada no horário do agendamento de Cirurgia 1
+        self.assertTrue(self.cache.is_team_busy(1, now))
+
+        # Equipe 1 não deve estar ocupada uma hora após o término de Cirurgia 1
+        check_time = now + timedelta(hours=2)
+        self.assertFalse(self.cache.is_team_busy(1, check_time))
+
+        # Equipe 2 deve estar ocupada no horário do agendamento de Cirurgia 2
+        self.assertTrue(self.cache.is_team_busy(2, now + timedelta(hours=1)))
+
+    def test_get_available_teams(self):
+        """Teste para verificar todas as equipes disponíveis em um horário específico"""
+        now = datetime.now()
+
+        schedules = [
+            Schedule(surgery_id=1, start_time=now, room_id=1, team_id=1),
+            Schedule(surgery_id=2, start_time=now + timedelta(hours=1), room_id=2, team_id=2)
+        ]
+        self.session.add_all(schedules)
+        self.session.commit()
+        self.cache.load_all_data(self.session)
+
+        # Verifica equipes disponíveis durante o horário da Cirurgia 1
+        available_teams = self.cache.get_available_teams(now)
+        available_team_ids = [team.id for team in available_teams]
+        self.assertIn(2, available_team_ids)
+        self.assertNotIn(1, available_team_ids)
+
+        # Verifica equipes disponíveis após o término de todas as cirurgias
+        available_teams_after = self.cache.get_available_teams(now + timedelta(hours=3))
+        available_team_ids_after = [team.id for team in available_teams_after]
+        self.assertIn(1, available_team_ids_after)
+        self.assertIn(2, available_team_ids_after)
+
+    def test_process_room(self):
+        """Teste para verificar o funcionamento do método process_room"""
+        solution = [1, 0]  # Solução com índice para equipes disponíveis
+        available_teams = self.cache.get_table(Team)
+
+        # Limpar o cache de 'schedule' para simular um novo processo de agendamento
+        self.cache.data['schedule'] = []
+
+        # Executar o método process_room
+        self.algorithm.process_room(solution, available_teams)
+
+        # Verificar se a cirurgia foi registrada corretamente
+        #self.assertEqual(len(self.cache.get_table(Surgery)), 1)  # Apenas uma cirurgia deve permanecer
+        #self.assertEqual(self.algorithm.step, 1)  # O passo deve ter sido incrementado
+        schedule = self.cache.get_table(Schedule)
+        self.assertEqual(1, len(schedule))
+
+        # Verificar se a cirurgia correta foi registrada em 'registered_surgeries'
+        #registered_surgeries = self.cache.get_table(Schedule, [])
+        #self.assertEqual(len(registered_surgeries), 1)  # Uma cirurgia deve ter sido registrada
+        #self.assertEqual(registered_surgeries[0]['surgery'].id, 1)  # Cirurgia 1 deve ser registrada
+        #self.assertEqual(registered_surgeries[0]['team'].id, 1)  # Equipe A deve ser a responsável
+        #self.assertEqual(registered_surgeries[0]['room'].id, 1)  # Sala 1 deve ser a utilizada
+
+
+class TestInMemoryCacheGetById(unittest.TestCase):
+    def setUp(self):
+        """Configura os dados de teste no cache antes de cada teste usando uma sessão em memória."""
+        self.session = setup_test_session()
+
+        # Criar e adicionar equipes na sessão
+        teams = [
+            Team(id=1, name="Equipe A"),
+            Team(id=2, name="Equipe B")
+        ]
+        self.session.add_all(teams)
+        self.session.commit()
+
+        # Inicializa o cache com os dados carregados
+        self.cache = InMemoryCache(session=self.session)
+
+    def test_get_by_id_success(self):
+        """Teste para verificar se o método retorna o objeto correto para um ID válido."""
+        team = self.cache.get_by_id(Team, 1)
+        self.assertIsNotNone(team)
+        self.assertEqual(team.id, 1)
+        self.assertEqual(team.name, "Equipe A")
+
+
+class TestInMemoryCacheGetSurgeryByTimeAndRoom(unittest.TestCase):
+    def setUp(self):
+        # Configuração do banco de dados em memória
+        self.engine = create_engine("sqlite:///:memory:")
+        SQLModel.metadata.create_all(self.engine)
+        self.session = Session(self.engine)
+
+        # Adicionando um paciente
+        patient = Patient(id=1, name="John Doe")
+        self.session.add(patient)
+
+        # Adicionando equipes
+        team_1 = Team(id=1, name="Team Alpha")
+        team_2 = Team(id=2, name="Team Beta")
+        self.session.add_all([team_1, team_2])
+
+        # Adicionando profissionais
+        professional_1 = Professional(id=1, name="Dr. Smith", team_id=1)
+        professional_2 = Professional(id=2, name="Dr. Johnson", team_id=2)
+        self.session.add_all([professional_1, professional_2])
+
+        # Adicionando uma sala
+        room = Room(id=1, name="Operating Room 1")
+        self.session.add(room)
+
+        # Adicionando cirurgias
+        surgery_1 = Surgery(
+            id=1,
+            name="Appendectomy",
+            duration=2,
+            priority=1,
+            patient_id=1,
+        )
+        surgery_2 = Surgery(
+            id=2,
+            name="Cholecystectomy",
+            duration=3,
+            priority=2,
+            patient_id=1,
+        )
+        self.session.add_all([surgery_1, surgery_2])
+
+        # Adicionando possíveis equipes para as cirurgias
+        surgery_team_1 = SurgeryPossibleTeams(surgery_id=1, team_id=1)
+        surgery_team_2 = SurgeryPossibleTeams(surgery_id=2, team_id=2)
+        self.session.add_all([surgery_team_1, surgery_team_2])
+
+        # Adicionando agendamentos
+        schedule_1 = Schedule(
+            start_time=datetime(2024, 11, 20, 8, 0),
+            surgery_id=1,
+            room_id=1,
+            team_id=1,
+        )
+        schedule_2 = Schedule(
+            start_time=datetime(2024, 11, 20, 10, 30),
+            surgery_id=2,
+            room_id=1,
+            team_id=2,
+        )
+        self.session.add_all([schedule_1, schedule_2])
+        self.session.commit()
+
+    def test_get_surgery_by_time_and_room(self):
+        # Inicializando o cache
+        cache = InMemoryCache(self.session)
+
+        # Buscando cirurgia pelo horário e sala
+        result = cache.get_surgery_by_time_and_room(
+            time=datetime(2024, 11, 20, 8, 0),
+            room=cache.get_by_id(Room, 1)
+        )
+
+        # Validando o resultado
+        assert result is not None
+        assert result.id == 1
+        assert result.name == "Appendectomy"
+
+
+class TestGetNextVacancies(unittest.TestCase):
+    def setUp(self):
+        """Configura um ambiente inicial para os testes."""
+        # Mock para o InMemoryCache
+        self.cache = InMemoryCache()
+
+        # Configura mock de dados
+        self.room1 = Room(id=1, name="Sala 1")
+        self.room2 = Room(id=2, name="Sala 2")
+
+        self.schedule1 = Schedule(
+            start_time=datetime(2024, 11, 17, 10, 0),
+            surgery_id=1,
+            room_id=1,
+            team_id=1,
+        )
+        self.schedule2 = Schedule(
+            start_time=datetime(2024, 11, 17, 11, 0),
+            surgery_id=2,
+            room_id=2,
+            team_id=2,
+        )
+        self.surgery1 = Surgery(id=1, name="Cirurgia 1", duration=60, priority=1)
+        self.surgery2 = Surgery(id=2, name="Cirurgia 2", duration=30, priority=2)
+
+        # Adiciona dados no cache
+        self.cache.data[Room.__tablename__] = [self.room1, self.room2]
+        self.cache.data[Schedule.__tablename__] = [self.schedule1, self.schedule2]
+        self.cache.data[Surgery.__tablename__] = [self.surgery1, self.surgery2]
+
+    def test_next_vacancies_success(self):
+        """Testa se as próximas vagas são retornadas corretamente."""
+        vacancies = self.cache.get_next_vacancies()
+
+        expected_vacancies = [
+            (self.room1, datetime(2024, 11, 17, 11, 0)),
+            (self.room2, datetime(2024, 11, 17, 11, 30)),
+        ]
+        self.assertEqual(vacancies, expected_vacancies)
+
+
+class TestNextVacany(unittest.TestCase):
+
+    def setUp(self):
+        """Configura o ambiente para os testes."""
+        # Mock do InMemoryCache
+        self.cache = InMemoryCache()
+
+        # Configura dados no cache
+        self.room1 = Room(id=1, name="Sala 1")
+        self.room2 = Room(id=2, name="Sala 2")
+
+        self.schedule1 = Schedule(
+            start_time=datetime(2024, 11, 17, 10, 0),
+            surgery_id=1,
+            room_id=1,
+            team_id=1,
+        )
+        self.schedule2 = Schedule(
+            start_time=datetime(2024, 11, 17, 11, 0),
+            surgery_id=2,
+            room_id=2,
+            team_id=2,
+        )
+        self.surgery1 = Surgery(id=1, name="Cirurgia 1", duration=60, priority=1)
+        self.surgery2 = Surgery(id=2, name="Cirurgia 2", duration=30, priority=2)
+
+        # Adiciona dados ao cache
+        self.cache.data[Room.__tablename__] = [self.room1, self.room2]
+        self.cache.data[Schedule.__tablename__] = [self.schedule1, self.schedule2]
+        self.cache.data[Surgery.__tablename__] = [self.surgery1, self.surgery2]
+
+        # Instancia a classe Algorithm com o cache
+        self.algorithm = Algorithm(self.cache)
+
+    def test_get_next_vacany_basic(self):
+        """Testa se o método get_next_vacany retorna a próxima vaga corretamente."""
+        expected = datetime(2024, 11, 17, 11, 0)
+        next_vacany = self.algorithm.get_next_vacany()
+        self.assertEqual(next_vacany, expected)
+
+    def test_get_next_vacany_with_adjustment(self):
+        """Testa se o método ajusta corretamente as vagas quando há duplicatas."""
+        # Adiciona uma vaga no mesmo horário
+        self.cache.data[Schedule.__tablename__].append(
+            Schedule(
+                start_time=datetime(2024, 11, 17, 10, 0),
+                surgery_id=3,
+                room_id=1,
+                team_id=3,
             )
-            st.rerun()
-
-    @MyLogger.decorate_function(add_extra=["CirurgyView"])
-    def view_cirurgy_list(self, cirurgies: list, logc: LogC):
-        self.col2.write(f'{len(cirurgies)} cirurgias')
-        self.col2.data_editor([cirurgy.get_dict() for cirurgy in cirurgies], use_container_width=True)
-
-
-if 'selected_cirurgy' not in st.session_state:
-    st.session_state['selected_cirurgy'] = None
-
-if 'cirurgies' not in st.session_state:
-    st.session_state['cirurgies'] = []
-
-if 'cirurgy_id_counter' not in st.session_state:
-    st.session_state['cirurgy_id_counter'] = [0]
+        )
+        logger.info(self.cache.data[Schedule.__tablename__])
+        next_vacany = self.algorithm.get_next_vacany()
+        expected = datetime(2024, 11, 17, 11, 0)  # A próxima vaga disponível após a duplicata
+        self.assertEqual(next_vacany, expected)
 
 
-class CirurgyModel(Cirurgia):
-    id_counter: list[int] = st.session_state['cirurgy_id_counter']
-    rooms: list["CirurgyModel"] = st.session_state['cirurgies']
+class TestAlgorithmExecute(unittest.TestCase):
 
-    def __init__(self, cirurgy_name: str, patient_name: str, duration: int, priority: int,
-                 possible_teams: list[str], possible_rooms: list[RoomModel], **kwargs):
-        super().__init__(cirurgy_name, duration, priority, possible_teams)
-        self._possible_teams = []
+    def setUp(self):
+        """Configuração inicial para os testes."""
+        # Mock do cache
+        self.mock_cache = MagicMock(spec=InMemoryCache)
 
-        self.cirurgy_name = cirurgy_name
-        self.patient_name = patient_name
-        self.duration = duration
-        self.priority = priority
-        self.possible_teams = possible_teams
-        self.possible_rooms = possible_rooms
+        # Exemplo de configuração inicial para cirurgias e equipes
+        self.mock_cache.get_table.side_effect = lambda table_name: {
+            'surgery': [
+                {'id': 1, 'duration': 2, 'priority': 1},
+                {'id': 2, 'duration': 1, 'priority': 2},
+            ],
+            'team': [
+                {'id': 1, 'name': 'Equipe A'},
+                {'id': 2, 'name': 'Equipe B'},
+            ],
+            'room': [
+                {'id': 1, 'name': 'Sala 1'},
+                {'id': 2, 'name': 'Sala 2'},
+            ],
+        }.get(table_name, [])
 
-        self.id = CirurgyModel.id_counter[0]
-        CirurgyModel.id_counter[0] += 1
-        CirurgyModel.rooms.append(self)
+        # Instancia o Algorithm com o cache mockado
+        self.algorithm = Algorithm(self.mock_cache)
 
-    @property
-    def possible_teams(self) -> list[TeamModel]:
-        return self._possible_teams
+    def test_execute_with_valid_solution(self):
+        """Testa a execução com uma solução válida."""
+        solution = [0, 1]  # Índices que mapeiam cirurgias para equipes
 
-    @possible_teams.setter
-    def possible_teams(self, teams):
-        for team in teams:
-            Data.get_team_by_id(int(team)).possible_cirurgies.append(self)
-        self._possible_teams = teams
+        # Executa o método
+        self.algorithm.execute(solution)
 
-    def get_dict(self) -> dict:
-        return self.__dict__
+        # Verifica se as equipes foram corretamente atribuídas
+        self.mock_cache.register_surgery.assert_any_call({'id': 1, 'duration': 2, 'priority': 1}, 0)
+        self.mock_cache.register_surgery.assert_any_call({'id': 2, 'duration': 1, 'priority': 2}, 1)
+        self.assertEqual(self.mock_cache.register_surgery.call_count, 2)
 
-    def __repr__(self):
-        try:
-            return f'Cirurgia({self.cirurgy_name})'  # f'Cirurgia({self.cirurgy_name}, {self.equipe.nome}, {self.duration})'
-        except (ValueError, TypeError):
-            return f'Cirurgia({self.cirurgy_name}, {self.duration})'
+    def test_execute_with_no_surgeries(self):
+        """Testa o caso em que não há cirurgias para agendar."""
+        self.mock_cache.get_table.side_effect = lambda table_name: {
+            'surgery': [],
+            'team': [
+                {'id': 1, 'name': 'Equipe A'},
+                {'id': 2, 'name': 'Equipe B'},
+            ],
+            'room': [
+                {'id': 1, 'name': 'Sala 1'},
+                {'id': 2, 'name': 'Sala 2'},
+            ],
+        }.get(table_name, [])
 
+        solution = []
 
-class CirurgyControl:
-    def __init__(self, logc: LogC = None):
-        self.cirurgy_view = CirurgyView(st.container(border=True))
-        self.cirurgy_view.add_cirurgy_button.button("Adicionar Cirurgia", on_click=self.cirurgy_view.view_add_cirurgy,
-                                                    kwargs={"on_submit": self.on_submit}, use_container_width=True,
-                                                    key="add_cirurgy")
-        # self.cirurgy_view.view_cirurgy_list(CirurgyModel.rooms, logc=logc)
-        self.cirurgy_view.view_list_cirurgies(self.make_list_view_dict(CirurgyModel.rooms))
-        self.cirurgy_view.view_selection(Data.get_cirurgies_names_with_id(), self.on_selection, logc=logc)
-        self.cirurgy_view.view_edit_name(st.session_state['selected_cirurgy'], self.on_change_name, logc=logc)
-        self.cirurgy_view.view_edit_patient(st.session_state['selected_cirurgy'], self.on_change_patient, logc=logc)
-        self.cirurgy_view.view_edit_priority(st.session_state['selected_cirurgy'], self.on_change_priority, logc=logc)
-        self.cirurgy_view.view_edit_duration(st.session_state['selected_cirurgy'], self.on_change_duration, logc=logc)
-        self.cirurgy_view.view_edit_possible_teams(st.session_state['selected_cirurgy'], self.on_change_possible_teams,
-                                                  logc=logc)
-        self.cirurgy_view.view_edit_possible_rooms(st.session_state['selected_cirurgy'], self.on_change_possible_rooms,
-                                                    logc=logc)
+        # Executa o método
+        self.algorithm.execute(solution)
 
-    @staticmethod
-    def on_change_possible_rooms(logc: LogC):
-        possible_rooms: list[str] = st.session_state['_change_possible_rooms']
-        st.session_state['selected_cirurgy'].possible_rooms = [room.split(' - ')[-1] for room in possible_rooms]
+        # Verifica se nenhuma cirurgia foi registrada
+        self.mock_cache.register_surgery.assert_not_called()
 
+    def test_execute_with_no_teams(self):
+        """Testa o caso em que não há equipes disponíveis."""
+        self.mock_cache.get_table.side_effect = lambda table_name: {
+            'surgery': [
+                {'id': 1, 'duration': 2, 'priority': 1},
+            ],
+            'team': [],  # Sem equipes disponíveis
+            'room': [
+                {'id': 1, 'name': 'Sala 1'},
+            ],
+        }.get(table_name, [])
 
-    @staticmethod
-    def on_change_possible_teams(logc: LogC):
-        possible_teams: list[str] = st.session_state['_change_possible_teams']
-        st.session_state['selected_cirurgy'].possible_teams = [team.split(' - ')[-1] for team in possible_teams]
+        solution = []
 
-    @staticmethod
-    def on_change_duration(logc: LogC):
-        duration = st.session_state['_change_duration']
-        st.session_state['selected_cirurgy'].duration = duration
+        # Executa o método
+        self.algorithm.execute(solution)
 
-    @staticmethod
-    def on_change_priority(logc: LogC):
-        priority = st.session_state['_change_priority']
-        st.session_state['selected_cirurgy'].priority = priority
-
-    @staticmethod
-    def on_change_patient(logc: LogC):
-        name = st.session_state['_change_patient_name']
-        st.session_state['selected_cirurgy'].patient_name = name
-
-    @staticmethod
-    def on_change_name(logc: LogC):
-        name = st.session_state['_change_cirugy_name']
-        st.session_state['selected_cirurgy'].cirurgy_name = name
-
-    @staticmethod
-    def on_selection(logc: LogC):
-        if '_selected_cirurgy_name' in st.session_state:
-            selected_name = st.session_state['_selected_cirurgy_name']
-            id = selected_name.split(" - ")[-1]
-            st.session_state['selected_cirurgy'] = Data.get_cirurgy_by_id(id)
-
-    @staticmethod
-    def make_list_view_dict(cirurgies: list[CirurgyModel]) -> dict:
-        cirurgies_dict = defaultdict(list)
-        for cirurgy in cirurgies:
-            cirurgies_dict['cirurgy_name'].append(cirurgy.cirurgy_name)
-            cirurgies_dict['patient_name'].append(cirurgy.patient_name)
-            cirurgies_dict['duration'].append(cirurgy.duration)
-            cirurgies_dict['priority'].append(cirurgy.priority)
-            cirurgies_dict['possible_teams'].append(cirurgy.possible_teams)
-            cirurgies_dict['possible_rooms'].append(cirurgy.possible_rooms)
-        return cirurgies_dict
-
-    @MyLogger.decorate_function(add_extra=["CirurgyControl"])
-    def on_submit(self, **kwargs):
-        CirurgyModel(**kwargs)
-
-
-class Data:
-    @staticmethod
-    def load_json(filepath="data/data_teste_2.json"):
-        if 'data_json' in st.session_state:
-            filepath = f'data/{st.session_state["data_json"]}'
-        datadict = jsbeautifier.beautify_file(filepath)
-        null = None
-        datadict = eval(datadict)
-
-        Data.clear_data()
-
-        for professional in datadict['professionals'].values():
-            ProfessionalModel(**professional)
-        for team in datadict['teams'].values():
-            TeamModel(**team)
-        for room in datadict['rooms'].values():
-            RoomModel(**room)
-        for cirurgy in datadict['cirurgies'].values():
-            CirurgyModel(**cirurgy)
-
-    @staticmethod
-    def get_dict() -> dict:
-        return {
-            "professionals": {i: professional.get_dict() for i, professional in
-                              enumerate(ProfessionalModel.professionals)},
-            "teams": {i: team.get_dict() for i, team in enumerate(TeamModel.teams)},
-            "rooms": {i: room.get_dict() for i, room in enumerate(RoomModel.rooms)},
-            "cirurgies": {i: cirurgy.get_dict() for i, cirurgy in enumerate(CirurgyModel.rooms)}
-        }
-
-    @staticmethod
-    def to_json_file(file='data.json'):
-        data = eval(str(Data.get_dict()))
-        data_json = jsbeautifier.beautify(json.dumps(data))
-        with open(file, "w") as file:
-            file.write(data_json)
-
-    @staticmethod
-    def get_teams_names() -> list[str]:
-        return [team.name for team in TeamModel.teams]
-
-    @staticmethod
-    def get_team_by_name(name: str) -> TeamModel:
-        assert isinstance(name, str), f"{type(name)=}"
-        for team in TeamModel.teams:
-            if str(team.name) == name:
-                return team
-        raise ValueError(f'Team "{name}" not found. {TeamModel.teams=}')
-
-    @staticmethod
-    def get_professionals_names() -> list[str]:
-        return [professional.name for professional in ProfessionalModel.professionals]
-
-    @staticmethod
-    def get_professional_by_name(name: str) -> ProfessionalModel:
-        for professional in ProfessionalModel.professionals:
-            if professional.name == name:
-                return professional
-        raise ValueError(f"Professional {name} not found")
-
-    @staticmethod
-    def get_rooms_names() -> list[str]:
-        return [room.name for room in RoomModel.rooms]
-
-    @staticmethod
-    def get_room_by_name(name: str) -> RoomModel:
-        for room in RoomModel.rooms:
-            if room.name == name:
-                return room
-        raise ValueError(f"Room {name} not found")
-
-    @staticmethod
-    def get_room_by_id(_id: int) -> RoomModel:
-        for room in RoomModel.rooms:
-            if int(room.id) == int(_id):
-                return room
-        raise ValueError(f"Room {_id} not found")
-
-    @staticmethod
-    def get_team_by_id(_id: int) -> TeamModel:
-        assert isinstance(_id, int) or isinstance(_id, str), f"{_id=}"
-        for team in TeamModel.teams:
-            if team.id == int(_id):
-                return team
-        raise ValueError(f"Team {_id} not found")
-
-    @staticmethod
-    def get_professional_by_id(_id: int) -> ProfessionalModel:
-        for professional in ProfessionalModel.professionals:
-            if professional.id == _id:
-                return professional
-        raise ValueError(f"Professional {_id} not found")
-
-    @staticmethod
-    def get_cirurgy_by_id(_id: int) -> CirurgyModel:
-        for cirurgy in CirurgyModel.rooms:
-            if int(cirurgy.id) == int(_id):
-                return cirurgy
-        raise ValueError(f"Cirurgy {_id} not found")
-
-    @staticmethod
-    def get_professionals_names_with_id() -> list[str]:
-        return [f"{professional.name} - {professional.id}" for professional in ProfessionalModel.professionals]
-
-    @staticmethod
-    def get_teams_names_with_id() -> list[str]:
-        return [f"{team.name} - {team.id}" for team in TeamModel.teams]
-
-    @staticmethod
-    def teams_ids_to_teams_with_name_and_id(teams_ids: list[int]) -> list[str]:
-        return [f"{Data.get_team_by_id(team_id).name} - {team_id}" for team_id in teams_ids]
-
-    @staticmethod
-    def extract_names_and_ids_from_teams(teams: list[TeamModel]) -> list[str]:
-        return [f"{team.name} - {team.id}" for team in teams]
-
-    @staticmethod
-    def get_rooms_names_with_id() -> list[str]:
-        return [f"{room.name} - {room.id}" for room in RoomModel.rooms]
-
-    @staticmethod
-    def rooms_ids_to_rooms_with_name_and_id(rooms_ids: list[int]) -> list[str]:
-        return [f"{Data.get_room_by_id(room_id).name} - {room_id}" for room_id in rooms_ids]
-
-    @staticmethod
-    def get_cirurgies_names_with_id() -> list[str]:
-        return [f"{cirurgy.patient_name} - {cirurgy.cirurgy_name} - {cirurgy.id}" for cirurgy in CirurgyModel.rooms]
-
-    @staticmethod
-    def get_cirurgies() -> list[CirurgyModel]:
-        print(CirurgyModel.rooms)
-        return CirurgyModel.rooms
-
-    @staticmethod
-    def get_rooms() -> list[RoomModel]:
-        return RoomModel.rooms
-
-    @staticmethod
-    def get_teams() -> list[TeamModel]:
-        return TeamModel.teams
-
-
-    @staticmethod
-    def clear_data():
-        st.session_state['professionals'].clear()
-        st.session_state['teams'].clear()
-        st.session_state['rooms'].clear()
-        st.session_state['cirurgies'].clear()
-
-
-if __name__ == '__main__':
-    st.selectbox("Selecione um arquivo JSON da pasta 'data/' para carregar os dados",
-                 os.listdir('data'), index=None, key='data_json', on_change=Data.load_json)
-
-    with MyLogger(add_tags=['program']) as logc:
-        tab_cirgs, tab_profs, tab_teams, tab_control = st.tabs(
-            ["💉 Cirurgias", "👨‍⚕️ Profissionais", "👥 Equipes", "🏥 Salas"])
-        with tab_profs:
-            professional_control = ProfessionalControl(logc=logc)
-        with tab_teams:
-            teams_control = TeamControl(logc=logc)
-        with tab_control:
-            rooms_control = RoomControl(logc=logc)
-        with tab_cirgs:
-            cirurgy_control = CirurgyControl(logc=logc)
-
-        if 'counter_gen_container' not in st.session_state:
-            st.session_state['counter_gen_container'] = st.empty()
-            st.write("Counter_gen_container criado")
-
-        if 'counter_gen' not in st.session_state:
-            st.session_state['counter_gen'] = 0
-
-        if 'agendado' not in st.session_state:
-            st.session_state['agendado'] = False
-
-        if st.button("Fazer agendamento!", use_container_width=True):
-            st.session_state['agendado'] = True
-            inicio = time.time()
-            logger.critical(f"{Data.get_rooms()}, {Data.get_cirurgies()}")
-            with st.spinner("Organizando salas..."):
-                mediador = Mediador()
-                mediador.equipes = Data.get_teams()
-                mediador.salas = Data.get_rooms()
-                otimizador = Otimizador(mediador, Data.get_cirurgies())
-                solucao, punicao = otimizador.otimizar_punicao()
-
-            st.write(f"Tempo de execução: {time.time() - inicio:.2f}s")
-            logger.critical(f"Tempo de execução: {time.time() - inicio:.2f}s")
-            st.write("Organização das salas:")
-
-            st.write(f"{solucao=} {punicao=}")
-            logger.success(f"{solucao=}")
-            algoritmo = Algoritmo(mediador, Data.get_cirurgies())
-            algoritmo.executar(solucao)
-            st.dataframe(algoritmo.dados_tabela)
+        # Verifica se nenhuma cirurgia foi registrada
+        self.mock_cache.register_surgery.assert_not_called()

@@ -18,6 +18,17 @@ T = TypeVar("T")
 M = TypeVar("M", bound=SQLModel)
 
 
+class DefaultConfig:
+    num_generations = 100
+    sol_per_pop = 100
+    num_parents_mating = 9
+    mutation_percent_genes = [5, 4]
+    keep_parents = -1
+    crossover_type = "single_point"
+    mutation_type = "random"
+    parent_selection_type = "sss"
+
+
 class LogConfig:
     algorithm_details: bool = False
 
@@ -990,7 +1001,7 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
     def test_execute_with_large_data(self):
         """Teste para verificar se o método execute lida bem com um grande volume de dados."""
         # Definindo uma solução válida que mapeia para as cirurgias
-        solution = [0 for i in range(len(self.surgeries))]  # Distribuindo as cirurgias nas 10 equipes
+        solution = [1 for i in range(len(self.surgeries))]  # Distribuindo as cirurgias nas 10 equipes
 
         # Executa o algoritmo
         self.algorithm.execute(solution)

@@ -19,7 +19,7 @@ M = TypeVar("M", bound=SQLModel)
 
 
 class LogConfig:
-    algorithm_details: bool = True
+    algorithm_details: bool = False
 
 
 class Team(SQLModel, table=True):
@@ -168,10 +168,12 @@ class InMemoryCache:
             schedule for schedule in self.data['schedule']
             if any(st.surgery_id == schedule.surgery_id for st in surgery_team_links)
         ]
-        logger.debug(f"Checking {schedules}")
+        if LogConfig.algorithm_details:
+            logger.debug(f"Checking {schedules}")
         # Verifica se o horário fornecido coincide com algum agendamento
         for schedule in schedules:
-            logger.debug(f"Checking schedule: {schedule} {schedule.start_time}")
+            if LogConfig.algorithm_details:
+                logger.debug(f"Checking schedule: {schedule} {schedule.start_time}")
             start_time = schedule.start_time
             end_time = start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
 
@@ -193,7 +195,7 @@ class InMemoryCache:
         """
         # Filtra agendamentos associados à sala específica no cache
         schedules = self.get_by_attribute(Schedule, "room_id", room_id)
-        if not schedules:
+        if not schedules and LogConfig.algorithm_details:
             logger.warning(f"No schedules found for room {room_id}: {self.get_table(Schedule)}")
 
         for schedule in schedules:
@@ -240,7 +242,8 @@ class InMemoryCache:
         possibles = list(filter(lambda x: x.surgery_id in [surgery.id for surgery in surgeries], possibles))
 
         if not possibles:
-            logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
+            if LogConfig.algorithm_details:
+                logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
             return None
 
         surgeries = [surgery for surgery in surgeries if surgery.id in [psbl.surgery_id for psbl in possibles]]
@@ -250,7 +253,8 @@ class InMemoryCache:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
         """Registra uma cirurgia no cache."""
-        logger.success(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
+        if LogConfig.algorithm_details:
+            logger.success(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
         self.data['schedule'].append(
             Schedule(start_time=start_time, surgery_id=surgery.id, room_id=room.id, team_id=team.id)
         )
@@ -449,43 +453,56 @@ class Algorithm:
 
         for room in self.cache.get_table(Room):
             if not self.cache.is_room_busy(room.id, self.next_vacany) and self.surgeries and available_teams:
-                try:
-                    team = available_teams[solution[self.step]]
-                except IndexError as e:
-                    logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=} {self.surgeries=}")
-                    raise e
-                surgery = self.cache.get_next_surgery(self.surgeries, team)
-
-                if surgery:
-                    self.cache.register_surgery(surgery, team, room, self.next_vacany)
-                    self.surgeries.remove(surgery)
-                    self.step += 1
-                else:
-                    for team in available_teams:
-                        surgery = self.cache.get_next_surgery(self.surgeries, team)
-                        if surgery:
-                            self.cache.register_surgery(surgery, team, room, self.next_vacany)
-                            self.surgeries.remove(surgery)
-                            self.step += 1
-                            break
-                    else:
-                        for team in self.cache.get_table(Team):
-                            surgery = self.cache.get_next_surgery(self.surgeries, team)
-                            if surgery:
-                                schedules = self.cache.get_by_attribute(Schedule, "team_id", team.id)
-                                last_schedule = max(schedules, key=lambda x: x.start_time)
-                                start_time = last_schedule.start_time + timedelta(minutes=surgery.duration)
-                                _room = self.cache.get_by_id(Room, last_schedule.room_id)
-
-                                self.cache.register_surgery(surgery, team, _room, start_time)
-                                self.surgeries.remove(surgery)
-                                self.step += 1
-                                break
-                        else:
-                            logger.error(f"No surgery found for any team. {available_teams=}")
-                            raise ValueError("No surgery found for any team.")
+                self._process_room_with_teams(room, solution, available_teams)
             else:
-                logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
+                if LogConfig.algorithm_details:
+                    logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _process_room_with_teams(self, room: Room, solution: list[int], available_teams: List[Team]):
+        try:
+            team = available_teams[solution[self.step]]
+        except IndexError as e:
+            logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=} {self.surgeries=}")
+            raise e
+
+        surgery = self.cache.get_next_surgery(self.surgeries, team)
+
+        if surgery:
+            self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+        else:
+            if not self._try_other_teams(room, available_teams):
+                self._try_global_teams(room)
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _register_surgery_and_update(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
+        self.cache.register_surgery(surgery, team, room, start_time)
+        self.surgeries.remove(surgery)
+        self.step += 1
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _try_other_teams(self, room: Room, available_teams: List[Team]) -> bool:
+        for team in available_teams:
+            surgery = self.cache.get_next_surgery(self.surgeries, team)
+            if surgery:
+                self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                return True
+        return False
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _try_global_teams(self, room: Room):
+        for team in self.cache.get_table(Team):
+            surgery = self.cache.get_next_surgery(self.surgeries, team)
+            if surgery:
+                schedules = self.cache.get_by_attribute(Schedule, "team_id", team.id)
+                last_schedule = max(schedules, key=lambda x: x.start_time)
+                start_time = last_schedule.start_time + timedelta(minutes=surgery.duration)
+                _room = self.cache.get_by_id(Room, last_schedule.room_id)
+
+                self._register_surgery_and_update(surgery, team, _room, start_time)
+                return
+        logger.error(f"No surgery found for any team. {self.surgeries=}")
+        raise ValueError("No surgery found for any team.")
 
 
 from sqlmodel import create_engine, Session

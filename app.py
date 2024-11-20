@@ -516,24 +516,33 @@ class Algorithm:
         raise ValueError("No surgery found for any team.")
 
 
+class Optimizer:
+    def __init__(self, cache: InMemoryCache = None):
+        self.cache = cache
+        self.algorithm = Algorithm(cache)
+
+    # cirurgias.sort(key=lambda cirurgia: cirurgia.duracao / cirurgia.punicao)
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def gene_space(self) -> list[dict[str, int]]:
+        _array: list[dict[str, int]] = []
+        high = len(self.cache.get_table(Team)) - 1
+        decrements = len(self.cache.get_table(Room)) - 1
+
+        for i in range(len(self.cache.get_table(Surgery))):
+            _array.append({"low": 0, "high": high})
+
+            if i < decrements:
+                high -= 1
+
+        return _array
+
+
 from sqlmodel import create_engine, Session
 from datetime import datetime
 
 # Configuração do banco
 engine = create_engine(os.getenv("DB_URL"))
-
-import unittest
-from datetime import datetime, timedelta
-from sqlmodel import SQLModel, create_engine, Session
-from typing import List
-
-# Inicializando o cache em memória
-#cache = InMemoryCache()
-
-# Classes para simulação dos dados
-import unittest
-from datetime import datetime, timedelta
-from typing import List
 
 
 import unittest
@@ -542,10 +551,93 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 
+
 def setup_test_session():
     engine = create_engine("sqlite:///:memory:")  # Banco de dados em memória
     SQLModel.metadata.create_all(engine)  # Cria as tabelas
     return Session(engine)
+
+
+class TestGeneSpace(unittest.TestCase):
+    def setUp(self):
+        # Mock do cache para simular os métodos
+        self.mock_cache = MagicMock()
+        self.optimizer = Optimizer(cache=self.mock_cache)
+
+    def test_gene_space_two_rooms_three_teams_four_surgeries(self):
+        # Simular dados para 2 salas, 3 equipes e 4 cirurgias
+        self.mock_cache.get_table.side_effect = lambda model: {
+            Team: list(range(3)),
+            Surgery: list(range(4)),
+            Room: list(range(2))
+        }[model]
+
+        # Executar método
+        result = self.optimizer.gene_space()
+
+        # Resultado esperado
+        expected = [
+            {"low": 0, "high": 2},
+            {"low": 0, "high": 1},
+            {"low": 0, "high": 1},
+            {"low": 0, "high": 1},
+        ]
+
+        # Validar o resultado
+        self.assertEqual(result, expected)
+
+    def test_gene_space_three_rooms_three_teams_four_surgeries(self):
+        # Simular dados para 3 salas, 3 equipes e 4 cirurgias
+        self.mock_cache.get_table.side_effect = lambda model: {
+            Team: list(range(3)),
+            Room: list(range(3)),
+            Surgery: list(range(4))
+        }[model]
+
+        # Executar método
+        result = self.optimizer.gene_space()
+
+        # Resultado esperado
+        expected = [
+            {"low": 0, "high": 2},
+            {"low": 0, "high": 1},
+            {"low": 0, "high": 0},
+            {"low": 0, "high": 0},
+        ]
+
+        # Validar o resultado
+        self.assertEqual(result, expected)
+
+    def test_gene_space_five_rooms_ten_teams_twelve_surgeries(self):
+        # Simular dados para 5 salas, 10 equipes e 12 cirurgias
+        self.mock_cache.get_table.side_effect = lambda model: {
+            Team: list(range(10)),
+            Surgery: list(range(12)),
+            Room: list(range(5))
+        }[model]
+
+        # Executar método
+        result = self.optimizer.gene_space()
+
+        # Resultado esperado
+        expected = [
+            {"low": 0, "high": 9},
+            {"low": 0, "high": 8},
+            {"low": 0, "high": 7},
+            {"low": 0, "high": 6},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+            {"low": 0, "high": 5},
+        ]
+
+        # Validar o resultado
+        self.assertEqual(result, expected)
+
 
 
 class TestInMemoryCache(unittest.TestCase):

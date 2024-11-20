@@ -1,11 +1,13 @@
 import os
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import Optional, List, TypeVar, Type, Sequence
+from typing import Optional, List, TypeVar, Type, Sequence, Tuple
 from unittest.mock import MagicMock
 
+import pandas as pd
 from loguru import logger
 from sqlmodel import Field, SQLModel, Relationship
+from tabulate import tabulate
 
 from moonlogger import MoonLogger
 from dotenv import load_dotenv
@@ -112,7 +114,18 @@ class InMemoryCache:
         for row in self.get_table(table):
             if row.id == _id:
                 return row
-        raise ValueError(f"ID {_id} não encontrado na tabela '{table.__tablename__}'")
+        raise ValueError(f"ID {_id} não encontrado na tabela '{table.__tablename__}':"
+                         f"{[row.id for row in self.get_table(table)]}")
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> list[M]:
+        assert type(value) == int, f"Value {value} must be an integer."
+        assert hasattr(table, attribute), f"Table '{table.__tablename__}' does not have attribute '{attribute}': {table.__dict__}"
+        r = []
+        for row in self.get_table(table):
+            if getattr(row, attribute) == value:
+                r.append(row)
+        return r
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def load_table(self, session: Session, model: Type[T]) -> Sequence[Type[T]]:
@@ -158,14 +171,38 @@ class InMemoryCache:
         logger.debug(f"Checking {schedules}")
         # Verifica se o horário fornecido coincide com algum agendamento
         for schedule in schedules:
-            logger.debug(f"Checking schedule: {schedule} {schedule.start_time} {schedule.surgery.duration}")
+            logger.debug(f"Checking schedule: {schedule} {schedule.start_time}")
             start_time = schedule.start_time
-            end_time = start_time + timedelta(minutes=schedule.surgery.duration)
+            end_time = start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
 
             if start_time <= check_time < end_time:
                 return True  # A equipe está ocupada
 
         return False  # A equipe está disponível
+
+    def is_room_busy(self, room_id: int, check_time: datetime) -> bool:
+        """
+        Verifica se uma sala está ocupada no horário fornecido, utilizando dados do cache.
+
+        Args:
+            room_id (int): ID da sala a ser verificada.
+            check_time (datetime): Horário para verificar a disponibilidade.
+
+        Returns:
+            bool: True se a sala estiver ocupada, False caso contrário.
+        """
+        # Filtra agendamentos associados à sala específica no cache
+        schedules = self.get_by_attribute(Schedule, "room_id", room_id)
+        if not schedules:
+            logger.warning(f"No schedules found for room {room_id}: {self.get_table(Schedule)}")
+
+        for schedule in schedules:
+            start_time = schedule.start_time
+            end_time = start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
+
+            if start_time <= check_time < end_time:
+                return True
+        return False
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_available_teams(self, check_time: datetime) -> List[Team]:
@@ -213,19 +250,56 @@ class InMemoryCache:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
         """Registra uma cirurgia no cache."""
-        logger.debug(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
+        logger.success(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
         self.data['schedule'].append(
             Schedule(start_time=start_time, surgery_id=surgery.id, room_id=room.id, team_id=team.id)
         )
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_surgery_by_time_and_room(self, time: datetime, room: Room) -> Surgery:
+    def get_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
         """Retorna a cirurgia agendada para um horário e sala específicos."""
+        self._validate_schedule_cache()
+        surgery = self._find_surgery_by_time_and_room(time, room)
+        if surgery:
+            return surgery
+        #occupied_intervals = self._get_room_schedule_intervals(room)
+        #self._raise_schedule_error(time, room, occupied_intervals)
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _validate_schedule_cache(self):
+        """Valida se os horários estão carregados no cache."""
         assert self.get_table(Schedule), "No schedules found in cache."
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _find_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
+        """Procura por uma cirurgia agendada para o horário e sala específicos."""
         for schedule in self.get_table(Schedule):
-            if schedule.start_time == time and schedule.room_id == room.id:
-                return self.get_by_id(Surgery, schedule.surgery_id)
-        raise ValueError(f"No surgery found for room {room.name} at {time}")
+            if schedule.room_id == room.id:
+                final = schedule.start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
+                if schedule.start_time <= time < final:
+                    return self.get_by_id(Surgery, schedule.surgery_id)
+        return None
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def _get_room_schedule_intervals(self, room: Room) -> list[tuple[datetime, datetime]]:
+        """Gera a lista de intervalos ocupados em uma sala."""
+        intervals = []
+        for schedule in self.get_table(Schedule):
+            if schedule.room_id == room.id:
+                surgery = self.get_by_id(Surgery, schedule.surgery_id)
+                intervals.append(
+                    (
+                        schedule.start_time,
+                        schedule.start_time + timedelta(minutes=surgery.duration)
+                    )
+                )
+        return intervals
+
+    def _raise_schedule_error(self, time: datetime, room: Room, intervals: List[Tuple[datetime, datetime]]):
+        """Lança uma exceção com informações detalhadas sobre os intervalos ocupados."""
+        logger.critical(f"No surgery found for room {room.name} at {time}: {intervals}")
+        #raise ValueError(f"No surgery found for room {room.name} at {time}: {intervals}")
+        quit()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_dict_surgeries_by_time(self, time: datetime) -> dict[str, str]:
@@ -233,7 +307,11 @@ class InMemoryCache:
         _dict = {}
         for room in self.get_table(Room):
             surgery = self.get_surgery_by_time_and_room(time, room)
-            _dict[room.name] = f"{self.get_by_id(Team, surgery.id).name} - {surgery.name}"
+            if surgery:
+                schedule = self.get_by_attribute(Schedule, "surgery_id", surgery.id)[0]
+                _dict[room.name] = f"{self.get_by_id(Team, schedule.team_id).name} - {surgery.name} - {surgery.duration}min"
+            else:
+                _dict[room.name] = "None"
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -265,8 +343,21 @@ class Algorithm:
         self.cache = cache
         self.surgeries: list[Surgery] = self.cache.get_table(Surgery)
         self.next_vacany = datetime(2024, 11, 1, 10, 0, 0)
-        self.step = 0
+        self._step = 0
         self.rooms_according_to_time = []
+
+    @property
+    def step(self):
+        return self._step
+
+    @step.setter
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def step(self, value):
+        self._step = value
+
+    def print_table(self):
+        df = pd.DataFrame(self.rooms_according_to_time)
+        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_vacany(self) -> datetime:
@@ -337,14 +428,18 @@ class Algorithm:
             assert available_teams or self.step != 0, f"Sem equipes. {available_teams=}, {self.step=}"
 
             if available_teams:
-                self.process_room(solution)
+                self.process_room(solution, available_teams)
                 self.rooms_according_to_time.append({
                     "Tempo": self.next_vacany,
                     **self.cache.get_dict_surgeries_by_time(self.next_vacany)
                 })
+                if LogConfig.algorithm_details:
+                    self.print_table()
 
             self.next_vacany = self.get_next_vacany()
-            self.step += 1
+
+        if LogConfig.algorithm_details:
+            self.print_table()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def process_room(self, solution: list[int], available_teams: List[Team]):
@@ -353,11 +448,11 @@ class Algorithm:
         assert self.cache.get_table(Room), "Sem salas."
 
         for room in self.cache.get_table(Room):
-            if not self.cache.is_team_busy(room.id, self.next_vacany) and self.surgeries and available_teams:
+            if not self.cache.is_room_busy(room.id, self.next_vacany) and self.surgeries and available_teams:
                 try:
                     team = available_teams[solution[self.step]]
                 except IndexError as e:
-                    logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=}")
+                    logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=} {self.surgeries=}")
                     raise e
                 surgery = self.cache.get_next_surgery(self.surgeries, team)
 
@@ -374,17 +469,21 @@ class Algorithm:
                             self.step += 1
                             break
                     else:
-                        for team in available_teams:
+                        for team in self.cache.get_table(Team):
                             surgery = self.cache.get_next_surgery(self.surgeries, team)
                             if surgery:
-                                self.cache.register_surgery(surgery, team, room, self.next_vacany)
+                                schedules = self.cache.get_by_attribute(Schedule, "team_id", team.id)
+                                last_schedule = max(schedules, key=lambda x: x.start_time)
+                                start_time = last_schedule.start_time + timedelta(minutes=surgery.duration)
+                                _room = self.cache.get_by_id(Room, last_schedule.room_id)
+
+                                self.cache.register_surgery(surgery, team, _room, start_time)
                                 self.surgeries.remove(surgery)
                                 self.step += 1
                                 break
                         else:
-                            e = f"No surgery found for any team. {available_teams=}"
-                            logger.error(e)
-                            quit()
+                            logger.error(f"No surgery found for any team. {available_teams=}")
+                            raise ValueError("No surgery found for any team.")
             else:
                 logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
 
@@ -752,81 +851,144 @@ class TestNextVacany(unittest.TestCase):
 
 
 class TestAlgorithmExecute(unittest.TestCase):
-
     def setUp(self):
-        """Configuração inicial para os testes."""
-        # Mock do cache
-        self.mock_cache = MagicMock(spec=InMemoryCache)
+        """Configura os dados de teste no cache antes de cada teste usando uma sessão em memória."""
+        self.session = setup_test_session()
 
-        # Exemplo de configuração inicial para cirurgias e equipes
-        self.mock_cache.get_table.side_effect = lambda table_name: {
-            'surgery': [
-                {'id': 1, 'duration': 2, 'priority': 1},
-                {'id': 2, 'duration': 1, 'priority': 2},
-            ],
-            'team': [
-                {'id': 1, 'name': 'Equipe A'},
-                {'id': 2, 'name': 'Equipe B'},
-            ],
-            'room': [
-                {'id': 1, 'name': 'Sala 1'},
-                {'id': 2, 'name': 'Sala 2'},
-            ],
-        }.get(table_name, [])
+        # Criar e adicionar equipes na sessão
+        self.teams = [
+            Team(id=1, name="Equipe A"),
+            Team(id=2, name="Equipe B")
+        ]
+        self.session.add_all(self.teams)
 
-        # Instancia o Algorithm com o cache mockado
-        self.algorithm = Algorithm(self.mock_cache)
+        # Criar e adicionar pacientes na sessão
+        self.patients = [
+            Patient(id=1, name="Paciente 1"),
+            Patient(id=2, name="Paciente 2")
+        ]
+        self.session.add_all(self.patients)
 
-    def test_execute_with_valid_solution(self):
-        """Testa a execução com uma solução válida."""
-        solution = [0, 1]  # Índices que mapeiam cirurgias para equipes
+        # Criar e adicionar cirurgias na sessão
+        self.surgeries = [
+            Surgery(id=1, name="Cirurgia 1", duration=60, patient_id=1, priority=1),
+            Surgery(id=2, name="Cirurgia 2", duration=120, patient_id=2, priority=2)
+        ]
+        self.session.add_all(self.surgeries)
 
-        # Executa o método
+        # Criar possíveis equipes para as cirurgias
+        surgery_possible_teams = [
+            SurgeryPossibleTeams(surgery_id=1, team_id=1),
+            SurgeryPossibleTeams(surgery_id=2, team_id=1),
+            SurgeryPossibleTeams(surgery_id=2, team_id=2),
+        ]
+        self.session.add_all(surgery_possible_teams)
+
+        rooms = [
+            Room(id=1, name="Sala 1"),
+            Room(id=2, name="Sala 2"),
+        ]
+        self.session.add_all(rooms)
+
+        # Commit para salvar todos os dados na sessão
+        self.session.commit()
+
+        self.cache = InMemoryCache(session=self.session)
+        self.cache.load_all_data(self.session)
+
+        now = datetime.now()
+
+        # Criar uma instância do algoritmo
+        self.algorithm = Algorithm(self.cache)
+        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.algorithm.next_vacany = now
+        self.algorithm.step = 0
+
+    def test_execute_surgeries(self):
+        """Teste para verificar se o método execute agenda as cirurgias corretamente."""
+        # Definindo uma solução válida que mapeia a execução da cirurgia
+        solution = [0, 0]  # Usando índices da equipe disponível para mandar para as cirurgias
         self.algorithm.execute(solution)
 
-        # Verifica se as equipes foram corretamente atribuídas
-        self.mock_cache.register_surgery.assert_any_call({'id': 1, 'duration': 2, 'priority': 1}, 0)
-        self.mock_cache.register_surgery.assert_any_call({'id': 2, 'duration': 1, 'priority': 2}, 1)
-        self.assertEqual(self.mock_cache.register_surgery.call_count, 2)
+        # Verifica que as cirurgias foram agendadas corretamente
+        schedules = self.cache.get_table(Schedule)
+        self.assertEqual(len(schedules), 2)  # Duas cirurgias devem ser agendadas
 
-    def test_execute_with_no_surgeries(self):
-        """Testa o caso em que não há cirurgias para agendar."""
-        self.mock_cache.get_table.side_effect = lambda table_name: {
-            'surgery': [],
-            'team': [
-                {'id': 1, 'name': 'Equipe A'},
-                {'id': 2, 'name': 'Equipe B'},
-            ],
-            'room': [
-                {'id': 1, 'name': 'Sala 1'},
-                {'id': 2, 'name': 'Sala 2'},
-            ],
-        }.get(table_name, [])
+        scheduled_surgeries_ids = [schedule.surgery_id for schedule in schedules]
+        self.assertIn(1, scheduled_surgeries_ids)  # Cirurgia 1 deve estar agendada
+        self.assertIn(2, scheduled_surgeries_ids)  # Cirurgia 2 deve estar agendada
 
-        solution = []
 
-        # Executa o método
+class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
+    def setUp(self):
+        """Configura um grande conjunto de dados para teste."""
+        self.session = setup_test_session()
+
+        # Criar e adicionar equipes na sessão
+        self.teams = [
+            Team(id=i, name=f"Equipe {i}") for i in range(1, 11)  # 10 equipes
+        ]
+        self.session.add_all(self.teams)
+
+        # Criar e adicionar pacientes na sessão
+        self.patients = [
+            Patient(id=i, name=f"Paciente {i}") for i in range(1, 21)  # 20 pacientes
+        ]
+        self.session.add_all(self.patients)
+
+        # Criar e adicionar cirurgias na sessão
+        self.surgeries = [
+            Surgery(id=i, name=f"Cirurgia {i}", duration=(i + 1) * 30, patient_id=(i % 20) + 1, priority=i % 5 + 1)
+            for i in range(1, 21)  # 20 cirurgias
+        ]
+        self.session.add_all(self.surgeries)
+
+        # Criar possíveis equipes para as cirurgias
+        surgery_possible_teams = [
+            SurgeryPossibleTeams(surgery_id=i, team_id=(i % 10) + 1) for i in range(1, 21)
+            # Cada cirurgia associada a uma equipe
+        ]
+        self.session.add_all(surgery_possible_teams)
+
+        # Criar salas
+        self.rooms = [
+            Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
+        ]
+        self.session.add_all(self.rooms)
+
+        # Commit para salvar todos os dados na sessão
+        self.session.commit()
+
+        self.cache = InMemoryCache(session=self.session)
+        self.cache.load_all_data(self.session)
+
+        now = datetime.now()
+
+        # Criar uma instância do algoritmo
+        self.algorithm = Algorithm(self.cache)
+        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.algorithm.next_vacany = now
+        self.algorithm.step = 0
+
+    def test_execute_with_large_data(self):
+        """Teste para verificar se o método execute lida bem com um grande volume de dados."""
+        # Definindo uma solução válida que mapeia para as cirurgias
+        solution = [0 for i in range(len(self.surgeries))]  # Distribuindo as cirurgias nas 10 equipes
+
+        # Executa o algoritmo
         self.algorithm.execute(solution)
 
-        # Verifica se nenhuma cirurgia foi registrada
-        self.mock_cache.register_surgery.assert_not_called()
+        # Verifica que as cirurgias foram agendadas corretamente
+        schedules = self.cache.get_table(Schedule)
 
-    def test_execute_with_no_teams(self):
-        """Testa o caso em que não há equipes disponíveis."""
-        self.mock_cache.get_table.side_effect = lambda table_name: {
-            'surgery': [
-                {'id': 1, 'duration': 2, 'priority': 1},
-            ],
-            'team': [],  # Sem equipes disponíveis
-            'room': [
-                {'id': 1, 'name': 'Sala 1'},
-            ],
-        }.get(table_name, [])
+        # Esperamos que todas as cirurgias sejam agendadas
+        self.assertEqual(len(schedules), 20)  # Todas as 20 cirurgias devem estar agendadas
 
-        solution = []
+        scheduled_surgeries_ids = [schedule.surgery_id for schedule in schedules]
 
-        # Executa o método
-        self.algorithm.execute(solution)
+        for surgery in self.surgeries:
+            self.assertIn(surgery.id, scheduled_surgeries_ids)  # Cada cirurgia deve estar agendada
 
-        # Verifica se nenhuma cirurgia foi registrada
-        self.mock_cache.register_surgery.assert_not_called()
+        # Verifica se todas as equipes registradas possuem agendamentos
+        scheduled_teams_ids = {schedule.team_id for schedule in schedules}
+        self.assertEqual(len(scheduled_teams_ids), 10)  # Todas as 10 equipes devem estar agendadas

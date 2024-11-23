@@ -352,6 +352,27 @@ class InMemoryCache:
 
         return vacancies
 
+    def calculate_punishment(self, zero_time: datetime) -> float:
+        assert self.get_table(Room), "No rooms found in cache."
+
+        if not self.get_table(Schedule):
+            logger.warning("No schedules found in cache.")
+            return 0
+
+        per_room = {}
+        global_total = 0
+
+        for room in self.get_table(Room):
+            local_total = 0
+            for schedule in self.get_by_attribute(Schedule, "room_id", room.id):
+                waiting_time = schedule.start_time - zero_time
+                if waiting_time.total_seconds() > 0:
+                    local_total += waiting_time.total_seconds() // 60
+            per_room[room.id] = local_total
+            global_total += local_total
+
+        return global_total
+
 
 class Algorithm:
     def __init__(self, cache: InMemoryCache = None):
@@ -520,6 +541,7 @@ class Optimizer:
     def __init__(self, cache: InMemoryCache = None):
         self.cache = cache
         self.algorithm = Algorithm(cache)
+        self.zero_time = datetime.now()
 
     # cirurgias.sort(key=lambda cirurgia: cirurgia.duracao / cirurgia.punicao)
 
@@ -531,11 +553,21 @@ class Optimizer:
 
         for i in range(len(self.cache.get_table(Surgery))):
             _array.append({"low": 0, "high": high})
-
             if i < decrements:
                 high -= 1
-
         return _array
+
+    def fitness_function(self):
+        def function(ga_instance, solution, solution_idx):
+            algorithm = Algorithm(self.cache)
+            try:
+                algorithm.execute(solution)
+            except Exception as e:
+                logger.error(f"Error in fitness function: {e}")
+                return -float("inf")
+
+            #total =
+
 
 
 from sqlmodel import create_engine, Session
@@ -637,7 +669,6 @@ class TestGeneSpace(unittest.TestCase):
 
         # Validar o resultado
         self.assertEqual(result, expected)
-
 
 
 class TestInMemoryCache(unittest.TestCase):
@@ -1112,3 +1143,64 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         # Verifica se todas as equipes registradas possuem agendamentos
         scheduled_teams_ids = {schedule.team_id for schedule in schedules}
         self.assertEqual(len(scheduled_teams_ids), 10)  # Todas as 10 equipes devem estar agendadas
+
+
+class TestInMemoryCacheCalculatePunishment(unittest.TestCase):
+    def setUp(self):
+        """Configura o ambiente inicial para os testes com dados simulados."""
+        self.session = setup_test_session()
+        self.cache = InMemoryCache(session=self.session)
+
+        # Criar e adicionar salas na sessão
+        self.room1 = Room(id=1, name="Room 1")
+        self.room2 = Room(id=2, name="Room 2")
+        self.session.add_all([self.room1, self.room2])
+
+        # Criar e adicionar cirurgias na sessão
+        self.surgery1 = Surgery(id=1, name="Surgery 1", duration=30, patient_id=None, priority=1)
+        self.surgery2 = Surgery(id=2, name="Surgery 2", duration=60, patient_id=None, priority=2)
+        self.surgery3 = Surgery(id=3, name="Surgery 3", duration=45, patient_id=None, priority=1)
+        self.session.add_all([self.surgery1, self.surgery2, self.surgery3])
+
+        # Criar e adicionar agendamentos (schedules) na sessão
+        now = datetime.now()
+        self.schedule1 = Schedule(start_time=now + timedelta(minutes=10), surgery_id=1, room_id=1, team_id=1)
+        self.schedule2 = Schedule(start_time=now + timedelta(minutes=20), surgery_id=2, room_id=1, team_id=1)
+        self.schedule3 = Schedule(start_time=now + timedelta(minutes=30), surgery_id=3, room_id=2, team_id=2)
+        self.session.add_all([self.schedule1, self.schedule2, self.schedule3])
+        self.now = now
+
+        # Efetuar o commit para salvar os dados no banco de dados
+        self.session.commit()
+
+        # Carregar todos os dados do banco de dados para o cache
+        self.cache.load_all_data(self.session)
+
+    def test_calculate_punishment(self):
+        """Teste para calcular a punição total de agendamentos."""
+        zero_time = self.now
+        punishment = self.cache.calculate_punishment(zero_time)
+
+        # Verifica a soma dos tempos de espera em minutos
+        expected_punishment = 10 + 20 + 30  # 10, 20 e 30 minutos, respectivamente
+        self.assertEqual(punishment, expected_punishment)
+
+    def test_no_schedules(self):
+        """Teste com nenhuma cirurgia agendada."""
+        self.cache.data[Schedule.__tablename__] = []  # Remove todos os agendamentos
+        punishment = self.cache.calculate_punishment(datetime.now())
+        self.assertEqual(punishment, 0)
+
+    def test_future_schedules_only(self):
+        """Teste se a punição é zero para agendamentos futuros além do zero_time."""
+        zero_time = self.now + timedelta(hours=2)  # Um tempo no futuro
+        punishment = self.cache.calculate_punishment(zero_time)
+        self.assertEqual(punishment, 0)
+
+    def test_empty_solution(self):
+        """Teste para verificar se a solução vazia não afeta o cálculo da punição."""
+        zero_time = self.now
+        punishment = self.cache.calculate_punishment(zero_time)
+        expected_punishment = 10 + 20 + 30
+        self.assertEqual(punishment, expected_punishment)
+

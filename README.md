@@ -9,9 +9,12 @@ Como executar, depois de descompactar e abrir a pasta `Hospital-main`:
 venv venv
 .\Scripts\activate
 pip install -r requirements.txt
-streamlit run app.py
+python run app.py
 ```
 ----
 Atualizações do projeto:
 
 https://trello.com/b/YArhBznk/siscof-hospital
+
+
+

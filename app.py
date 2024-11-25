@@ -1,10 +1,11 @@
 import os
-from copy import deepcopy
+from copy import deepcopy, copy
 from datetime import datetime, timedelta
-from typing import Optional, List, TypeVar, Type, Sequence, Tuple
+from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pygad
 from loguru import logger
 from sqlmodel import Field, SQLModel, Relationship
 from tabulate import tabulate
@@ -19,8 +20,8 @@ M = TypeVar("M", bound=SQLModel)
 
 
 class DefaultConfig:
-    num_generations = 100
-    sol_per_pop = 100
+    num_generations = 25
+    sol_per_pop = 50
     num_parents_mating = 9
     mutation_percent_genes = [5, 4]
     keep_parents = -1
@@ -31,6 +32,7 @@ class DefaultConfig:
 
 class LogConfig:
     algorithm_details: bool = False
+    optimizer_details: bool = False
 
 
 class Team(SQLModel, table=True):
@@ -104,8 +106,14 @@ class InMemoryCache:
         """Inicializa o cache e carrega os dados em memória de forma dinâmica."""
         if not hasattr(self, 'data'):
             self.data = {cls.__tablename__: [] for cls in self.get_table_classes()}
+            self.indexes = {}
             if session:
                 self.load_all_data(session)
+
+    def __copy__(self):
+        _new = InMemoryCache()
+        _new.data = deepcopy(self.data)
+        return _new
 
     @staticmethod
     def get_table_classes() -> List[Type[SQLModel]]:
@@ -120,23 +128,48 @@ class InMemoryCache:
             self.data[table_name] = self.load_table(session, model)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_by_id(self, table: Type[M], _id: int) -> M:
-        assert type(_id) == int, f"ID {_id} deve ser um inteiro."
-        for row in self.get_table(table):
-            if row.id == _id:
-                return row
-        raise ValueError(f"ID {_id} não encontrado na tabela '{table.__tablename__}':"
-                         f"{[row.id for row in self.get_table(table)]}")
+    def _build_index(self, table: Type[M]):
+        tablename = table.__tablename__
+        if tablename not in self.indexes:
+            self.indexes[tablename] = {row.id: row for row in self.data.get(tablename, [])}
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> list[M]:
-        assert type(value) == int, f"Value {value} must be an integer."
-        assert hasattr(table, attribute), f"Table '{table.__tablename__}' does not have attribute '{attribute}': {table.__dict__}"
-        r = []
-        for row in self.get_table(table):
-            if getattr(row, attribute) == value:
-                r.append(row)
-        return r
+    def _build_attribute_index(self, table: Type[M], attribute: str):
+        tablename = table.__tablename__
+        # Garante a estrutura do índice por tabela e atributo
+        if tablename not in self.indexes:
+            self.indexes[tablename] = {}
+        if attribute not in self.indexes[tablename]:
+            # Cria o índice para o atributo específico
+            self.indexes[tablename][attribute] = {}
+            for row in self.data.get(tablename, []):
+                attr_value = getattr(row, attribute, None)
+                if attr_value not in self.indexes[tablename][attribute]:
+                    self.indexes[tablename][attribute][attr_value] = []
+                self.indexes[tablename][attribute][attr_value].append(row)
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_by_id(self, table: Type[M], _id: int) -> M:
+        assert isinstance(_id, int), f"ID {_id} deve ser um inteiro."
+
+        self._build_index(table)  # Garante que o índice existe
+
+        tablename = table.__tablename__
+        if _id in self.indexes[tablename]:
+            return self.indexes[tablename][_id]
+
+        raise ValueError(f"ID {_id} não encontrado na tabela '{tablename}'.")
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
+        assert hasattr(table, attribute), f"Table '{table.__tablename__}' does not have attribute '{attribute}'."
+
+        # Garante que o índice do atributo está construído
+        self._build_attribute_index(table, attribute)
+
+        # Recupera e retorna as linhas correspondentes ao valor do atributo
+        tablename = table.__tablename__
+        return self.indexes[tablename][attribute].get(value, [])
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def load_table(self, session: Session, model: Type[T]) -> Sequence[Type[T]]:
@@ -150,49 +183,27 @@ class InMemoryCache:
         self.data.clear()
         self.load_all_data(session)
 
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_table(self, table: Type[M]) -> List[M]:
         """Retorna uma cópia dos dados da tabela especificada para evitar alterações no cache."""
         if table.__tablename__ not in self.data:
             raise ValueError(f"Tabela '{table.__tablename__}' não encontrada no cache.")
-        return deepcopy(self.data.get(table.__tablename__, []))
+        return self.data.get(table.__tablename__, [])
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def is_team_busy(self, team_id: int, check_time: datetime) -> bool:
-        """
-        Verifica se uma equipe está ocupada no horário fornecido, utilizando dados do cache.
+        schedules = self.get_by_attribute(Schedule, "team_id", team_id)
+        if not schedules:
+            return False
 
-        Args:
-            team_id (int): ID da equipe a ser verificada.
-            check_time (datetime): Horário para verificar a disponibilidade.
-
-        Returns:
-            bool: True se a equipe estiver ocupada, False caso contrário.
-        """
-        # Filtra cirurgias associadas à equipe específica no cache
-        surgery_team_links = [
-            st for st in self.data['surgery_possible_teams']
-            if st.team_id == team_id
-        ]
-
-        # Encontra os agendamentos associados às cirurgias da equipe
-        schedules = [
-            schedule for schedule in self.data['schedule']
-            if any(st.surgery_id == schedule.surgery_id for st in surgery_team_links)
-        ]
-        if LogConfig.algorithm_details:
-            logger.debug(f"Checking {schedules}")
-        # Verifica se o horário fornecido coincide com algum agendamento
         for schedule in schedules:
-            if LogConfig.algorithm_details:
-                logger.debug(f"Checking schedule: {schedule} {schedule.start_time}")
             start_time = schedule.start_time
             end_time = start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
-
             if start_time <= check_time < end_time:
-                return True  # A equipe está ocupada
+                return True
+        return False
 
-        return False  # A equipe está disponível
-
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def is_room_busy(self, room_id: int, check_time: datetime) -> bool:
         """
         Verifica se uma sala está ocupada no horário fornecido, utilizando dados do cache.
@@ -239,10 +250,9 @@ class InMemoryCache:
         return available_teams
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_surgery(self, surgeries: list[Surgery], team: Team) -> Surgery | SQLModel | None:
+    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
         """Retorna a próxima cirurgia a ser realizada por uma equipe específica."""
-        possibles = self.data.get(SurgeryPossibleTeams.__tablename__)
-        possibles = [psbl for psbl in possibles if psbl.team_id == team.id]
+        possibles = self.get_by_attribute(SurgeryPossibleTeams, "team_id", team.id)
 
         if not possibles:
             logger.error(f"this team didn't have any corresponding surgery "
@@ -250,15 +260,17 @@ class InMemoryCache:
                          f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
             return None
 
-        possibles = list(filter(lambda x: x.surgery_id in [surgery.id for surgery in surgeries], possibles))
+        psb_cgrs = []
+        for schedule in possibles:
+            if schedule.team_id == team.id and schedule.surgery_id in [surgery.id for surgery in surgeries]:
+                psb_cgrs.append(self.get_by_id(Surgery, schedule.surgery_id))
 
-        if not possibles:
+        if not psb_cgrs:
             if LogConfig.algorithm_details:
                 logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
             return None
 
-        surgeries = [surgery for surgery in surgeries if surgery.id in [psbl.surgery_id for psbl in possibles]]
-        surgeries = list(sorted(surgeries, key=lambda x: x.duration / (x.priority or 1)))
+        surgeries = list(sorted(psb_cgrs, key=lambda x: x.duration / (x.priority or 1)))
         return surgeries[0]
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -296,7 +308,7 @@ class InMemoryCache:
         return None
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _get_room_schedule_intervals(self, room: Room) -> list[tuple[datetime, datetime]]:
+    def _get_room_schedule_intervals(self, room: Room) -> List[Tuple[datetime, datetime]]:
         """Gera a lista de intervalos ocupados em uma sala."""
         intervals = []
         for schedule in self.get_table(Schedule):
@@ -317,7 +329,7 @@ class InMemoryCache:
         quit()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_dict_surgeries_by_time(self, time: datetime) -> dict[str, str]:
+    def get_dict_surgeries_by_time(self, time: datetime) -> Dict[str, str]:
         """Retorna um dicionário com todas as cirurgias agendadas para um horário específico."""
         _dict = {}
         for room in self.get_table(Room):
@@ -330,7 +342,7 @@ class InMemoryCache:
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacancies(self) -> list[tuple[Room, datetime]]:
+    def get_next_vacancies(self) -> List[Tuple[Room, datetime]]:
         """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
         vacancies = []
         schedules = self.get_table(Schedule)
@@ -352,6 +364,7 @@ class InMemoryCache:
 
         return vacancies
 
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def calculate_punishment(self, zero_time: datetime) -> float:
         assert self.get_table(Room), "No rooms found in cache."
 
@@ -375,10 +388,10 @@ class InMemoryCache:
 
 
 class Algorithm:
-    def __init__(self, cache: InMemoryCache = None):
-        self.cache = cache
-        self.surgeries: list[Surgery] = self.cache.get_table(Surgery)
-        self.next_vacany = datetime(2024, 11, 1, 10, 0, 0)
+    def __init__(self, cache: InMemoryCache = None, zero_time: datetime = datetime.now()):
+        self.cache = copy(cache)
+        self.surgeries: List[Surgery] = copy(self.cache.get_table(Surgery))
+        self.next_vacany = zero_time
         self._step = 0
         self.rooms_according_to_time = []
 
@@ -417,7 +430,7 @@ class Algorithm:
             raise ValueError("No rooms found in cache.")
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _get_sorted_vacancies(self) -> list:
+    def _get_sorted_vacancies(self) -> List:
         """Obtém e ordena as vagas disponíveis."""
         vacanies = self.cache.get_next_vacancies()
         if not vacanies:
@@ -425,7 +438,7 @@ class Algorithm:
         return sorted(vacanies, key=lambda x: x[1])
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _adjust_duplicate_vacancies(self, vacanies_dt: list[datetime]) -> list[datetime]:
+    def _adjust_duplicate_vacancies(self, vacanies_dt: List[datetime]) -> List[datetime]:
         """Ajusta valores duplicados na lista de tempos de vagas."""
         adjusted_vacanies = []
         previous_value = None
@@ -439,7 +452,7 @@ class Algorithm:
         return adjusted_vacanies
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _get_next_available_time(self, vacanies_dt: list[datetime]) -> datetime:
+    def _get_next_available_time(self, vacanies_dt: List[datetime]) -> datetime:
         """Retorna o próximo horário disponível baseado na lista ajustada."""
         if LogConfig.algorithm_details:
             logger.debug(f"{self.next_vacany=}")
@@ -451,7 +464,7 @@ class Algorithm:
         return vacanies_dt[0] if vacanies_dt else self.next_vacany + timedelta(seconds=1)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def execute(self, solution: list[int]):
+    def execute(self, solution: List[int]):
         self.step = 0
 
         assert self.surgeries, "Sem cirurgias."
@@ -478,24 +491,31 @@ class Algorithm:
             self.print_table()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def process_room(self, solution: list[int], available_teams: List[Team]):
+    def process_room(self, solution: List[int], available_teams: List[Team]):
         assert self.surgeries, "Sem cirurgias."
         assert available_teams, "Sem equipes disponíveis."
         assert self.cache.get_table(Room), "Sem salas."
 
         for room in self.cache.get_table(Room):
-            if not self.cache.is_room_busy(room.id, self.next_vacany) and self.surgeries and available_teams:
+            if self.surgeries and available_teams and not self.cache.is_room_busy(room.id, self.next_vacany) :
                 self._process_room_with_teams(room, solution, available_teams)
             else:
                 if LogConfig.algorithm_details:
                     logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _process_room_with_teams(self, room: Room, solution: list[int], available_teams: List[Team]):
+    def _process_room_with_teams(self, room: Room, solution: List[int], available_teams: List[Team]):
         try:
-            team = available_teams[solution[self.step]]
+            team_n = solution[self.step]
         except IndexError as e:
-            logger.error(f"IndexError: {solution=}, {self.step=}, {available_teams=} {self.surgeries=}")
+            logger.error(f"The step is out of range. {len(solution)=}, {self.step=}, {solution=}")
+            raise e
+
+        try:
+            team = available_teams[team_n]
+        except IndexError as e:
+            logger.error(f"there are not enough teams for this index."
+                         f"{team_n=}, {len(available_teams)=}, {available_teams=}, {solution=}")
             raise e
 
         surgery = self.cache.get_next_surgery(self.surgeries, team)
@@ -540,14 +560,14 @@ class Algorithm:
 class Optimizer:
     def __init__(self, cache: InMemoryCache = None):
         self.cache = cache
-        self.algorithm = Algorithm(cache)
         self.zero_time = datetime.now()
+        self.algorithm = Algorithm(cache, self.zero_time)
 
     # cirurgias.sort(key=lambda cirurgia: cirurgia.duracao / cirurgia.punicao)
 
-    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def gene_space(self) -> list[dict[str, int]]:
-        _array: list[dict[str, int]] = []
+    @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+    def gene_space(self) -> List[Dict[str, int]]:
+        _array: List[Dict[str, int]] = []
         high = len(self.cache.get_table(Team)) - 1
         decrements = len(self.cache.get_table(Room)) - 1
 
@@ -557,17 +577,63 @@ class Optimizer:
                 high -= 1
         return _array
 
+    @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+    def function2(self, ga_instance, solution, solution_idx):
+        if LogConfig.optimizer_details:
+            logger.debug(f"Solution: {solution}, {solution_idx=}")
+        algorithm = Algorithm(self.cache)
+        try:
+            algorithm.execute(solution)
+        except Exception as e:
+            logger.error(f"Error in fitness function: {e}")
+            return -float("inf")
+        punishment = self.cache.calculate_punishment(self.zero_time)
+        if LogConfig.optimizer_details:
+            logger.debug(f"Punishment: {punishment}")
+        return -punishment
+
     def fitness_function(self):
         def function(ga_instance, solution, solution_idx):
-            algorithm = Algorithm(self.cache)
-            try:
-                algorithm.execute(solution)
-            except Exception as e:
-                logger.error(f"Error in fitness function: {e}")
-                return -float("inf")
+            @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+            def function2(self, ga_instance, solution, solution_idx):
+                if LogConfig.optimizer_details:
+                    logger.debug(f"Solution: {solution}, {solution_idx=}")
+                algorithm = Algorithm(self.cache)
+                try:
+                    algorithm.execute(solution)
+                except Exception as e:
+                    logger.error(f"Error in fitness function: {e}")
+                    return -float("inf")
+                punishment = self.cache.calculate_punishment(self.zero_time)
+                if LogConfig.optimizer_details:
+                    logger.debug(f"Punishment: {punishment}")
+                return -punishment
+            return function2(self, ga_instance, solution, solution_idx)
+        return function
 
-            #total =
+    @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+    def run(self) -> List[int]:
+        gene_space_array = self.gene_space()
 
+        ga_instance = pygad.GA(
+            num_generations=DefaultConfig.num_generations,
+            num_parents_mating=DefaultConfig.num_parents_mating,
+            sol_per_pop=DefaultConfig.sol_per_pop,
+            num_genes=len(self.cache.get_table(Surgery)),
+            gene_space=gene_space_array,
+            fitness_func=self.fitness_function(),
+            random_mutation_min_val=-3,
+            random_mutation_max_val=3,
+            mutation_type=DefaultConfig.mutation_type,
+            gene_type=int,
+            parent_selection_type=DefaultConfig.parent_selection_type,
+            keep_parents=DefaultConfig.keep_parents,
+            crossover_type=DefaultConfig.crossover_type
+        )
+
+        ga_instance.run()
+        solution, punishment, solution_idx = ga_instance.best_solution()
+        return solution
 
 
 from sqlmodel import create_engine, Session
@@ -722,7 +788,7 @@ class TestInMemoryCache(unittest.TestCase):
 
         # Criar uma instância do algoritmo
         self.algorithm = Algorithm(self.cache)
-        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.algorithm.surgeries = deepcopy(self.cache.get_table(Surgery))
         self.algorithm.next_vacany = now
         self.algorithm.step = 0
         assert self.algorithm.surgeries
@@ -1204,3 +1270,48 @@ class TestInMemoryCacheCalculatePunishment(unittest.TestCase):
         expected_punishment = 10 + 20 + 30
         self.assertEqual(punishment, expected_punishment)
 
+
+class TestOptimizer(unittest.TestCase):
+    def setUp(self):
+        """Configura um ambiente inicial para os testes."""
+        pass
+
+    def test_gene_space(self):
+        engine = create_engine(os.getenv("DB_URL"))
+        with Session(engine) as session:
+            cache = InMemoryCache(session=session)
+            optimizer = Optimizer(cache=cache)
+            solution = optimizer.run()
+
+            algorithm = Algorithm(cache)
+            algorithm.execute(solution)
+            algorithm.print_table()
+        logger.success(f"Teste concluído com sucesso: {MoonLogger.time_dict}")
+
+    def test_testing(self):
+        optimizer = Optimizer({})
+        optimizer.fitness_function()
+
+    def test_algorithm(self):
+        engine = create_engine(os.getenv("DB_URL"))
+        solution = [ 6, 11, 10,  0,  7,  5,  6,  2,  4,  1,  6,  5,  6,  0,  1,  4,  7,
+        1,  0,  1,  0,  6,  4,  4,  3,  3,  2,  8,  3]
+
+        try:
+            with Session(engine) as session:
+                cache = InMemoryCache(session=session)
+                algorithm = Algorithm(cache)
+                algorithm.execute(solution)
+                algorithm.print_table()
+        except Exception as e:
+            logger.error(f"Erro ao executar o algoritmo. {e}")
+
+        logger.success(f"Teste concluído: {MoonLogger.time_dict}")
+
+    def test_1(self):
+        engine = create_engine(os.getenv("DB_URL"))
+
+        with Session(engine) as session:
+            cache = InMemoryCache(session=session)
+            optimizer = Optimizer(cache=cache)
+            logger.success(optimizer.gene_space())

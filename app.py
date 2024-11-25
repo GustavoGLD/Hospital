@@ -512,7 +512,10 @@ class Algorithm:
             raise e
 
         try:
-            team = available_teams[team_n]
+            if team_n >= len(available_teams):
+                team = available_teams[-1]
+            else:
+                team = available_teams[team_n]
         except IndexError as e:
             logger.error(f"there are not enough teams for this index."
                          f"{team_n=}, {len(available_teams)=}, {available_teams=}, {solution=}")

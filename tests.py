@@ -492,7 +492,7 @@ class TestAlgorithmExecute(unittest.TestCase):
         self.algorithm.execute(solution)
 
         # Verifica que as cirurgias foram agendadas corretamente
-        schedules = self.cache.get_table(Schedule)
+        schedules = self.algorithm.cache.get_table(Schedule)
         self.assertEqual(len(schedules), 2)  # Duas cirurgias devem ser agendadas
 
         scheduled_surgeries_ids = [schedule.surgery_id for schedule in schedules]
@@ -560,7 +560,7 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         self.algorithm.execute(solution)
 
         # Verifica que as cirurgias foram agendadas corretamente
-        schedules = self.cache.get_table(Schedule)
+        schedules = self.algorithm.cache.get_table(Schedule)
 
         # Esperamos que todas as cirurgias sejam agendadas
         self.assertEqual(len(schedules), 20)  # Todas as 20 cirurgias devem estar agendadas

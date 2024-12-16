@@ -31,8 +31,8 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = False
-    optimizer_details: bool = False
+    algorithm_details: bool = True
+    optimizer_details: bool = True
 
 
 class Team(SQLModel, table=True):
@@ -164,7 +164,6 @@ class InMemoryCache:
     def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
         assert hasattr(table, attribute), f"Table '{table.__tablename__}' does not have attribute '{attribute}'."
 
-        # Garante que o índice do atributo está construído
         self._build_attribute_index(table, attribute)
 
         # Recupera e retorna as linhas correspondentes ao valor do atributo
@@ -275,12 +274,41 @@ class InMemoryCache:
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
-        """Registra uma cirurgia no cache."""
+        """Registra uma cirurgia no cache e atualiza os índices."""
         if LogConfig.algorithm_details:
-            logger.success(f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
-        self.data['schedule'].append(
-            Schedule(start_time=start_time, surgery_id=surgery.id, room_id=room.id, team_id=team.id)
+            logger.success(
+                f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
+
+        # Criação do objeto Schedule
+        new_schedule = Schedule(
+            start_time=start_time,
+            surgery_id=surgery.id,
+            room_id=room.id,
+            team_id=team.id
         )
+
+        # Adiciona ao cache
+        tablename = 'schedule'
+        self.data[tablename].append(new_schedule)
+
+        # Atualiza os índices (usando a chave composta)
+        if tablename not in self.indexes:
+            self.indexes[tablename] = {}  # Garante a inicialização
+
+        # Índice pela chave composta: (surgery_id, room_id, team_id)
+        composite_key = (new_schedule.surgery_id, new_schedule.room_id, new_schedule.team_id)
+        if 'composite_key' not in self.indexes[tablename]:
+            self.indexes[tablename]['composite_key'] = {}
+        self.indexes[tablename]['composite_key'][composite_key] = new_schedule
+
+        # Índices adicionais por atributos importantes
+        for attribute in ['surgery_id', 'room_id', 'team_id', 'start_time']:
+            if attribute not in self.indexes[tablename]:
+                self.indexes[tablename][attribute] = {}
+            attr_value = getattr(new_schedule, attribute)
+            if attr_value not in self.indexes[tablename][attribute]:
+                self.indexes[tablename][attribute][attr_value] = []
+            self.indexes[tablename][attribute][attr_value].append(new_schedule)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
@@ -565,8 +593,6 @@ class Optimizer:
         self.cache = cache
         self.zero_time = datetime.now()
         self.algorithm = Algorithm(cache, self.zero_time)
-
-    # cirurgias.sort(key=lambda cirurgia: cirurgia.duracao / cirurgia.punicao)
 
     @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
     def gene_space(self) -> List[Dict[str, int]]:

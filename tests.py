@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 
-from app import Algorithm, InMemoryCache, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
+from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
     Professional
 from moonlogger import MoonLogger
 
@@ -142,7 +142,7 @@ class TestInMemoryCache(unittest.TestCase):
         # Commit para salvar todos os dados na sessão
         self.session.commit()
 
-        self.cache = InMemoryCache(session=self.session)
+        self.cache = CacheInDict(session=self.session)
         self.cache.load_all_data(self.session)
 
         #logger.debug(f"Teams: {self.cache.load_table(self.session, Team)}")
@@ -244,7 +244,7 @@ class TestInMemoryCacheGetById(unittest.TestCase):
         self.session.commit()
 
         # Inicializa o cache com os dados carregados
-        self.cache = InMemoryCache(session=self.session)
+        self.cache = CacheInDict(session=self.session)
 
     def test_get_by_id_success(self):
         """Teste para verificar se o método retorna o objeto correto para um ID válido."""
@@ -319,7 +319,7 @@ class TestInMemoryCacheGetSurgeryByTimeAndRoom(unittest.TestCase):
 
     def test_get_surgery_by_time_and_room(self):
         # Inicializando o cache
-        cache = InMemoryCache(self.session)
+        cache = CacheInDict(self.session)
 
         # Buscando cirurgia pelo horário e sala
         result = cache.get_surgery_by_time_and_room(
@@ -336,8 +336,8 @@ class TestInMemoryCacheGetSurgeryByTimeAndRoom(unittest.TestCase):
 class TestGetNextVacancies(unittest.TestCase):
     def setUp(self):
         """Configura um ambiente inicial para os testes."""
-        # Mock para o InMemoryCache
-        self.cache = InMemoryCache()
+        # Mock para o CacheInDict
+        self.cache = CacheInDict()
 
         # Configura mock de dados
         self.room1 = Room(id=1, name="Sala 1")
@@ -378,8 +378,8 @@ class TestNextVacany(unittest.TestCase):
 
     def setUp(self):
         """Configura o ambiente para os testes."""
-        # Mock do InMemoryCache
-        self.cache = InMemoryCache()
+        # Mock do CacheInDict
+        self.cache = CacheInDict()
 
         # Configura dados no cache
         self.room1 = Room(id=1, name="Sala 1")
@@ -474,7 +474,7 @@ class TestAlgorithmExecute(unittest.TestCase):
         # Commit para salvar todos os dados na sessão
         self.session.commit()
 
-        self.cache = InMemoryCache(session=self.session)
+        self.cache = CacheInDict(session=self.session)
         self.cache.load_all_data(self.session)
 
         now = datetime.now()
@@ -540,7 +540,7 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         # Commit para salvar todos os dados na sessão
         self.session.commit()
 
-        self.cache = InMemoryCache(session=self.session)
+        self.cache = CacheInDict(session=self.session)
         self.cache.load_all_data(self.session)
 
         now = datetime.now()
@@ -579,7 +579,7 @@ class TestInMemoryCacheCalculatePunishment(unittest.TestCase):
     def setUp(self):
         """Configura o ambiente inicial para os testes com dados simulados."""
         self.session = setup_test_session()
-        self.cache = InMemoryCache(session=self.session)
+        self.cache = CacheInDict(session=self.session)
 
         # Criar e adicionar salas na sessão
         self.room1 = Room(id=1, name="Room 1")
@@ -643,7 +643,7 @@ class TestOptimizer(unittest.TestCase):
     def test_gene_space(self):
         engine = create_engine(os.getenv("DB_URL"))
         with Session(engine) as session:
-            cache = InMemoryCache(session=session)
+            cache = CacheInDict(session=session)
             optimizer = Optimizer(cache=cache)
             solution = optimizer.run()
 
@@ -663,7 +663,7 @@ class TestOptimizer(unittest.TestCase):
 
         try:
             with Session(engine) as session:
-                cache = InMemoryCache(session=session)
+                cache = CacheInDict(session=session)
                 algorithm = Algorithm(cache)
                 algorithm.execute(solution)
                 algorithm.print_table()
@@ -676,6 +676,6 @@ class TestOptimizer(unittest.TestCase):
         engine = create_engine(os.getenv("DB_URL"))
 
         with Session(engine) as session:
-            cache = InMemoryCache(session=session)
+            cache = CacheInDict(session=session)
             optimizer = Optimizer(cache=cache)
             logger.success(optimizer.gene_space())

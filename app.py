@@ -102,7 +102,49 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 
-class InMemoryCache:
+class CacheManager(ABC):
+    @abstractmethod
+    def get_table(self, table: Type[M]) -> List[M]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_vacancies(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_id(self, table: Type[M], _id: int) -> M:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_team_busy(self, team_id: int, check_time: datetime) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_room_busy(self, room_id: int, check_time: datetime) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_available_teams(self, check_time: datetime) -> List[Team]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_dict_surgeries_by_time(self, time: datetime) -> Dict[str, str]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __copy__(self):
+        raise NotImplementedError
+
+
+class CacheInDict(CacheManager):
     def __init__(self, session: Optional[Session] = None):
         """Inicializa o cache e carrega os dados em memória de forma dinâmica."""
         if not hasattr(self, 'data'):
@@ -112,7 +154,7 @@ class InMemoryCache:
                 self.load_all_data(session)
 
     def __copy__(self):
-        _new = InMemoryCache()
+        _new = CacheInDict()
         _new.data = deepcopy(self.data)
         return _new
 
@@ -416,42 +458,8 @@ class InMemoryCache:
         return global_total
 
 
-class CacheManager(ABC):
-    @abstractmethod
-    def get_table(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_next_vacancies(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_by_id(self, table: Type[M], _id: int) -> M:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def is_team_busy(self, team_id: int, check_time: datetime) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    def is_room_busy(self, room_id: int, check_time: datetime) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_available_teams(self, check_time: datetime) -> List[Team]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
-        raise NotImplementedError
-
-
 class Algorithm:
-    def __init__(self, cache: InMemoryCache = None, zero_time: datetime = datetime.now()):
+    def __init__(self, cache: CacheManager = None, zero_time: datetime = datetime.now()):
         self.cache = copy(cache)
         self.surgeries: List[Surgery] = copy(self.cache.get_table(Surgery))
         self.next_vacany = zero_time
@@ -624,7 +632,7 @@ class Algorithm:
 
 
 class Optimizer:
-    def __init__(self, cache: InMemoryCache = None):
+    def __init__(self, cache: CacheInDict = None):
         self.cache = cache
         self.zero_time = datetime.now()
         self.algorithm = Algorithm(cache, self.zero_time)
@@ -710,7 +718,7 @@ if __name__ == "__main__":
     with Session(engine) as session:
         try:
             logger.info("Lendo o banco de dados...")
-            cache = InMemoryCache(session=session)
+            cache = CacheInDict(session=session)
             logger.info("Executando o algoritmo...")
             optimizer = Optimizer(cache=cache)
             solution = optimizer.run()

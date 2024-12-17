@@ -1,4 +1,5 @@
 import os
+from abc import ABC, abstractmethod
 from copy import deepcopy, copy
 from datetime import datetime, timedelta
 from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict
@@ -413,6 +414,40 @@ class InMemoryCache:
             global_total += local_total
 
         return global_total
+
+
+class CacheManager(ABC):
+    @abstractmethod
+    def get_table(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_vacancies(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_id(self, table: Type[M], _id: int) -> M:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_team_busy(self, team_id: int, check_time: datetime) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_room_busy(self, room_id: int, check_time: datetime) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_available_teams(self, check_time: datetime) -> List[Team]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
+        raise NotImplementedError
 
 
 class Algorithm:

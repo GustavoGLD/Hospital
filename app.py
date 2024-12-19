@@ -132,6 +132,10 @@ class CacheManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
+        raise NotImplementedError
+
+    @abstractmethod
     def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
         raise NotImplementedError
 

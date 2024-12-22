@@ -1,5 +1,6 @@
 import os
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime, timedelta
 from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict
@@ -421,6 +422,10 @@ class CacheInDict(CacheManager):
             self.indexes[tablename][attribute][attr_value].append(new_schedule)
 
 
+ScheduleWithoutPrevious = List[int]
+ScheduleWithoutNext = List[int]
+
+
 class Algorithm:
     def __init__(self, cache: CacheManager = None, zero_time: datetime = datetime.now()):
         self.cache = copy(cache)
@@ -466,31 +471,41 @@ class Algorithm:
             raise ValueError("No vacancies found.")
         return sorted(vacanies, key=lambda x: x[1])
 
-    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _adjust_duplicate_vacancies(self, vacanies_dt: List[datetime]) -> List[datetime]:
-        """Ajusta valores duplicados na lista de tempos de vagas."""
-        adjusted_vacanies = []
-        previous_value = None
+    def find_delimiter_schedules(self, zero_time: datetime) -> Tuple[ScheduleWithoutNext, ScheduleWithoutPrevious]:
+        # Agrupar cirurgias por sala
+        schedules_by_room: Dict[int, List[Schedule]] = defaultdict(list)
+        schedules = self.cache.get_table(Schedule)
+        for schedule in schedules:
+            schedules_by_room[schedule.room_id].append(schedule)
 
-        for i, val in enumerate(vacanies_dt):
-            if i > 0 and val == previous_value:
-                val = adjusted_vacanies[-1] + timedelta(seconds=1)
-            adjusted_vacanies.append(val)
-            previous_value = val
+        surgeries_without_next = []
+        surgeries_without_previous = []
 
-        return adjusted_vacanies
+        # Processar cada sala
+        for room_id, room_schedules in schedules_by_room.items():
+            # Ordenar as cirurgias pelo horário de início
+            room_schedules.sort(key=lambda x: x.start_time)
 
-    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _get_next_available_time(self, vacanies_dt: List[datetime]) -> datetime:
-        """Retorna o próximo horário disponível baseado na lista ajustada."""
-        if LogConfig.algorithm_details:
-            logger.debug(f"{self.next_vacany=}")
-        if self.next_vacany in vacanies_dt:
-            index = vacanies_dt.index(self.next_vacany)
-            if index + 1 < len(vacanies_dt):
-                return vacanies_dt[index + 1]
+            for i, current in enumerate(room_schedules):
+                # Verificar se há cirurgia imediatamente após
+                if i < len(room_schedules) - 1:
+                    next_surgery = room_schedules[i + 1]
+                    if current.end_time != next_surgery.start_time:
+                        surgeries_without_next.append(current.surgery_id)
+                else:
+                    # Última cirurgia da sala: sempre não tem próxima
+                    surgeries_without_next.append(current.surgery_id)
 
-        return vacanies_dt[0] if vacanies_dt else self.next_vacany + timedelta(seconds=1)
+                # Verificar se há cirurgia imediatamente antes, ignorando zero_time
+                if i > 0:
+                    previous_surgery = room_schedules[i - 1]
+                    if current.start_time != previous_surgery.end_time:
+                        surgeries_without_previous.append(current.surgery_id)
+                elif current.start_time != zero_time:
+                    # Primeira cirurgia, mas não começa no zero_time
+                    surgeries_without_previous.append(current.surgery_id)
+
+        return surgeries_without_next, surgeries_without_previous
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def execute(self, solution: List[int]):

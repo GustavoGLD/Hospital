@@ -412,23 +412,7 @@ class TestNextVacany(unittest.TestCase):
         """Testa se o método get_next_vacany retorna a próxima vaga corretamente."""
         expected = datetime(2024, 11, 17, 11, 0)
         next_vacany = self.algorithm.get_next_vacany()
-        self.assertEqual(next_vacany, expected)
-
-    def test_get_next_vacany_with_adjustment(self):
-        """Testa se o método ajusta corretamente as vagas quando há duplicatas."""
-        # Adiciona uma vaga no mesmo horário
-        self.cache.data[Schedule.__tablename__].append(
-            Schedule(
-                start_time=datetime(2024, 11, 17, 10, 0),
-                surgery_id=3,
-                room_id=1,
-                team_id=3,
-            )
-        )
-        logger.info(self.cache.data[Schedule.__tablename__])
-        next_vacany = self.algorithm.get_next_vacany()
-        expected = datetime(2024, 11, 17, 11, 0)  # A próxima vaga disponível após a duplicata
-        self.assertEqual(next_vacany, expected)
+        self.assertEqual(next_vacany[1], expected)
 
 
 class TestAlgorithmExecute(unittest.TestCase):
@@ -480,9 +464,8 @@ class TestAlgorithmExecute(unittest.TestCase):
         now = datetime.now()
 
         # Criar uma instância do algoritmo
-        self.algorithm = Algorithm(self.cache)
+        self.algorithm = Algorithm(self.cache, now)
         self.algorithm.surgeries = self.cache.get_table(Surgery)
-        self.algorithm.next_vacany = now
         self.algorithm.step = 0
 
     def test_execute_surgeries(self):
@@ -546,9 +529,8 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         now = datetime.now()
 
         # Criar uma instância do algoritmo
-        self.algorithm = Algorithm(self.cache)
+        self.algorithm = Algorithm(self.cache, now)
         self.algorithm.surgeries = self.cache.get_table(Surgery)
-        self.algorithm.next_vacany = now
         self.algorithm.step = 0
 
     def test_execute_with_large_data(self):

@@ -32,7 +32,7 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = True
+    algorithm_details: bool = False
     optimizer_details: bool = True
 
 
@@ -157,6 +157,16 @@ class CacheManager(ABC):
         return available_teams
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_available_rooms(self, check_time: datetime) -> List[Room]:
+        available_rooms = []
+
+        for room in self.get_table(Room):
+            if not self.is_room_busy(room.id, check_time):
+                available_rooms.append(room)
+
+        return available_rooms
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
         """Retorna a próxima cirurgia a ser realizada por uma equipe específica."""
         possibles = self.get_by_attribute(SurgeryPossibleTeams, "team_id", team.id)
@@ -236,7 +246,7 @@ class CacheManager(ABC):
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacancies(self) -> List[Tuple[Room, datetime]]:
+    def get_next_vacancies(self, zero_time: datetime) -> List[Tuple[Room, datetime]]:
         """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
         vacancies = []
         schedules = self.get_table(Schedule)
@@ -247,14 +257,17 @@ class CacheManager(ABC):
 
         for room in rooms:
             local_schedules = [schedule for schedule in schedules if schedule.room_id == room.id]
-            assert local_schedules, f"No schedules found for room {room.name}: {schedules}"
-            last_schedule = max(local_schedules, key=lambda x: x.start_time)
-            vacancies.append((
-                room,
-                last_schedule.start_time + timedelta(
-                    minutes=self.get_by_id(Surgery, last_schedule.surgery_id).duration
-                )
-            ))
+            # assert local_schedules, f"No schedules found for room {room.name}: {schedules}"
+            if not local_schedules:
+                vacancies.append((room, zero_time))
+            else:
+                last_schedule = max(local_schedules, key=lambda x: x.start_time)
+                vacancies.append((
+                    room,
+                    last_schedule.start_time + timedelta(
+                        minutes=self.get_by_id(Surgery, last_schedule.surgery_id).duration
+                    )
+                ))
 
         return vacancies
 
@@ -412,7 +425,9 @@ class Algorithm:
     def __init__(self, cache: CacheManager = None, zero_time: datetime = datetime.now()):
         self.cache = copy(cache)
         self.surgeries: List[Surgery] = copy(self.cache.get_table(Surgery))
+        self.zero_time = zero_time
         self.next_vacany = zero_time
+        self.next_vacany_room = self.cache.get_available_rooms(self.next_vacany)[0]
         self._step = 0
         self.rooms_according_to_time = []
 
@@ -430,18 +445,11 @@ class Algorithm:
         logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacany(self) -> datetime:
+    def get_next_vacany(self) -> Tuple[Room, datetime]:
         """Retorna a próxima vaga disponível."""
         self._validate_cache()  # Validações iniciais
 
-        vacanies = self._get_sorted_vacancies()
-        vacanies_dt = [vacany[1] for vacany in vacanies]
-
-        # Ajusta valores duplicados, se necessário
-        if self.next_vacany in vacanies_dt:
-            vacanies_dt = self._adjust_duplicate_vacancies(vacanies_dt)
-
-        return self._get_next_available_time(vacanies_dt)
+        return self._get_sorted_vacancies()[0]
 
     def _validate_cache(self):
         """Valida se o cache possui as tabelas necessárias."""
@@ -451,9 +459,9 @@ class Algorithm:
             raise ValueError("No rooms found in cache.")
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _get_sorted_vacancies(self) -> List:
+    def _get_sorted_vacancies(self) -> List[Tuple[Room, datetime]]:
         """Obtém e ordena as vagas disponíveis."""
-        vacanies = self.cache.get_next_vacancies()
+        vacanies = self.cache.get_next_vacancies(self.zero_time)
         if not vacanies:
             raise ValueError("No vacancies found.")
         return sorted(vacanies, key=lambda x: x[1])
@@ -505,8 +513,8 @@ class Algorithm:
                 })
                 if LogConfig.algorithm_details:
                     self.print_table()
-
-            self.next_vacany = self.get_next_vacany()
+                self.print_table()
+            self.next_vacany_room, self.next_vacany = self.get_next_vacany()
 
         if LogConfig.algorithm_details:
             self.print_table()
@@ -517,12 +525,7 @@ class Algorithm:
         assert available_teams, "Sem equipes disponíveis."
         assert self.cache.get_table(Room), "Sem salas."
 
-        for room in self.cache.get_table(Room):
-            if self.surgeries and available_teams and not self.cache.is_room_busy(room.id, self.next_vacany) :
-                self._process_room_with_teams(room, solution, available_teams)
-            else:
-                if LogConfig.algorithm_details:
-                    logger.debug(f"Room {room.name} is busy at {self.next_vacany}")
+        self._process_room_with_teams(self.next_vacany_room, solution, available_teams)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _process_room_with_teams(self, room: Room, solution: List[int], available_teams: List[Team]):

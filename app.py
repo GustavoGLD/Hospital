@@ -80,6 +80,7 @@ class Surgery(SQLModel, table=True):
 
 class Schedule(SQLModel, table=True):
     start_time: datetime
+    fixed: bool = Field(default=False)
 
     surgery_id: int = Field(foreign_key="surgery.id", primary_key=True)
     room_id: int = Field(foreign_key="room.id")
@@ -247,7 +248,8 @@ class CacheManager(ABC):
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacancies(self, zero_time: datetime) -> List[Tuple[Room, datetime]]:
+    def get_next_vacancies(self, zero_time: datetime, fixed_schedules_considered: list[Surgery]) \
+            -> List[Tuple[Room, datetime]]:
         """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
         vacancies = []
         schedules = self.get_table(Schedule)
@@ -262,6 +264,10 @@ class CacheManager(ABC):
             if not local_schedules:
                 vacancies.append((room, zero_time))
             else:
+                """
+                considerar a ultimo (max) agendamento agendado entre:
+                agendamentos não fixos + agendamentos fixos já CONSIDERADOS (fixed_schedules_considered)
+                """
                 last_schedule = max(local_schedules, key=lambda x: x.start_time)
                 vacancies.append((
                     room,
@@ -422,10 +428,6 @@ class CacheInDict(CacheManager):
             self.indexes[tablename][attribute][attr_value].append(new_schedule)
 
 
-ScheduleWithoutPrevious = List[int]
-ScheduleWithoutNext = List[int]
-
-
 class Algorithm:
     def __init__(self, cache: CacheManager = None, zero_time: datetime = datetime.now()):
         self.cache = copy(cache)
@@ -435,6 +437,7 @@ class Algorithm:
         self.next_vacany_room = self.cache.get_available_rooms(self.next_vacany)[0]
         self._step = 0
         self.rooms_according_to_time = []
+        self.fixed_schedules_considered = []
 
     @property
     def step(self):
@@ -466,46 +469,10 @@ class Algorithm:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _get_sorted_vacancies(self) -> List[Tuple[Room, datetime]]:
         """Obtém e ordena as vagas disponíveis."""
-        vacanies = self.cache.get_next_vacancies(self.zero_time)
+        vacanies = self.cache.get_next_vacancies(self.zero_time, self.fixed_schedules_considered)
         if not vacanies:
             raise ValueError("No vacancies found.")
         return sorted(vacanies, key=lambda x: x[1])
-
-    def find_delimiter_schedules(self, zero_time: datetime) -> Tuple[ScheduleWithoutNext, ScheduleWithoutPrevious]:
-        # Agrupar cirurgias por sala
-        schedules_by_room: Dict[int, List[Schedule]] = defaultdict(list)
-        schedules = self.cache.get_table(Schedule)
-        for schedule in schedules:
-            schedules_by_room[schedule.room_id].append(schedule)
-
-        surgeries_without_next = []
-        surgeries_without_previous = []
-
-        # Processar cada sala
-        for room_id, room_schedules in schedules_by_room.items():
-            # Ordenar as cirurgias pelo horário de início
-            room_schedules.sort(key=lambda x: x.start_time)
-
-            for i, current in enumerate(room_schedules):
-                # Verificar se há cirurgia imediatamente após
-                if i < len(room_schedules) - 1:
-                    next_surgery = room_schedules[i + 1]
-                    if current.end_time != next_surgery.start_time:
-                        surgeries_without_next.append(current.surgery_id)
-                else:
-                    # Última cirurgia da sala: sempre não tem próxima
-                    surgeries_without_next.append(current.surgery_id)
-
-                # Verificar se há cirurgia imediatamente antes, ignorando zero_time
-                if i > 0:
-                    previous_surgery = room_schedules[i - 1]
-                    if current.start_time != previous_surgery.end_time:
-                        surgeries_without_previous.append(current.surgery_id)
-                elif current.start_time != zero_time:
-                    # Primeira cirurgia, mas não começa no zero_time
-                    surgeries_without_previous.append(current.surgery_id)
-
-        return surgeries_without_next, surgeries_without_previous
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def execute(self, solution: List[int]):
@@ -562,8 +529,35 @@ class Algorithm:
 
         surgery = self.cache.get_next_surgery(self.surgeries, team)
 
+        """
+        verificar se o tamanho da vaga é suficiente para a cirurgia
+        se não for, tentar procurar uma cirurgia que caiba na vaga
+        e preencha o restante com espaço vazio.
+        se não houver cirurgia que caiba, apenas preencher com espaço vazio.
+        verificar se é possível encaixar 2 ou mais cirurgias nessa vaga
+        
+        depois de preencher os espaços até o agendamento fixo, adicione o
+        agendamento fixo à fixed_schedules_considered
+        """
         if surgery:
-            self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+            schedules = self.cache.get_by_attribute(Schedule, "room_id", room.id)
+            if any([schedule.fixed for schedule in schedules]):
+                schedule = min(schedules, key=lambda sch: abs(sch.start_time - self.next_vacany))
+                if timedelta() < schedule.start_time - self.next_vacany < timedelta(minutes=surgery.duration):
+                    """
+                    procurar por cirurgias que caibam no espaço restante
+                    """
+
+                    
+                elif schedule.start_time == self.next_vacany:
+                    return
+                else:
+                    self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                    """
+                    verificar se sobra espaço para outras cirurgias
+                    """
+            else:
+                self._register_surgery_and_update(surgery, team, room, self.next_vacany)
         else:
             if not self._try_other_teams(room, available_teams):
                 self._try_global_teams(room)
@@ -575,7 +569,7 @@ class Algorithm:
         self.step += 1
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _try_other_teams(self, room: Room, available_teams: List[Team]) -> bool:
+    def _try_other_teams(self, room: Room, available_teams: List[Team], interval=timedelta()) -> bool:
         for team in available_teams:
             surgery = self.cache.get_next_surgery(self.surgeries, team)
             if surgery:

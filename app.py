@@ -736,8 +736,14 @@ if __name__ == "__main__":
 
     with Session(engine) as session:
         try:
-            logger.info("Lendo o banco de dados...")
+            logger.info("Limpando a tabela de agendamentos...")
+            for row in session.exec(select(Schedule)).all():
+                session.delete(row)
+            session.commit()
+
+            logger.info("Recolhendo dados do banco de dados...")
             cache = CacheInDict(session=session)
+
             logger.info("Executando o algoritmo...")
             optimizer = Optimizer(cache=cache)
             solution = optimizer.run()
@@ -748,8 +754,6 @@ if __name__ == "__main__":
             algorithm.print_table()
 
             logger.info("Salvando os resultados no banco de dados...")
-            for row in session.exec(select(Schedule)).all():
-                session.delete(row)
 
             session.add_all(algorithm.cache.get_table(Schedule))
             session.commit()

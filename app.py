@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pygad
 from loguru import logger
+from pydantic import computed_field
 from sqlmodel import Field, SQLModel, Relationship
 from tabulate import tabulate
 
@@ -33,8 +34,8 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = False
-    optimizer_details: bool = True
+    algorithm_details: bool = True
+    optimizer_details: bool = False
 
 
 class Team(SQLModel, table=True):
@@ -89,6 +90,18 @@ class Schedule(SQLModel, table=True):
     surgery: Surgery = Relationship(back_populates="schedule")
     room: Room = Relationship(back_populates="schedules")
     team: Team = Relationship(back_populates="schedules")
+
+
+class EmptySchedule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    room_id: int = Field(foreign_key="room.id")
+    start_time: datetime
+    duration: int
+
+    @computed_field
+    @property
+    def end_time(self) -> datetime:
+        return self.start_time + timedelta(minutes=self.duration)
 
 
 class SurgeryPossibleTeams(SQLModel, table=True):
@@ -182,7 +195,8 @@ class CacheManager(ABC):
         psb_cgrs = []
         for schedule in possibles:
             if schedule.team_id == team.id and schedule.surgery_id in [surgery.id for surgery in surgeries]:
-                psb_cgrs.append(self.get_by_id(Surgery, schedule.surgery_id))
+                if schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule)]:
+                    psb_cgrs.append(self.get_by_id(Surgery, schedule.surgery_id))
 
         if not psb_cgrs:
             if LogConfig.algorithm_details:
@@ -248,18 +262,25 @@ class CacheManager(ABC):
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacancies(self, zero_time: datetime, fixed_schedules_considered: list[Surgery]) \
-            -> List[Tuple[Room, datetime]]:
+    def get_next_vacancies(self, zero_time: datetime, fixed_schedules_considered: list[Schedule],
+                           empty_schedules_considered: list[EmptySchedule]) -> List[Tuple[Room, datetime]]:
         """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
         vacancies = []
-        schedules = self.get_table(Schedule)
+        schedules: list[Schedule | EmptySchedule] = self.get_table(Schedule)
         rooms = self.get_table(Room)
+
+        schedules.extend(fixed_schedules_considered)
+        schedules.extend(empty_schedules_considered)
 
         assert schedules, "No schedules found in cache."
         assert rooms, "No rooms found in cache."
 
         for room in rooms:
-            local_schedules = [schedule for schedule in schedules if schedule.room_id == room.id]
+
+            local_schedules: list[Schedule | EmptySchedule] = [
+                schedule for schedule in schedules if schedule.room_id == room.id
+            ]
+
             # assert local_schedules, f"No schedules found for room {room.name}: {schedules}"
             if not local_schedules:
                 vacancies.append((room, zero_time))
@@ -268,7 +289,9 @@ class CacheManager(ABC):
                 considerar a ultimo (max) agendamento agendado entre:
                 agendamentos não fixos + agendamentos fixos já CONSIDERADOS (fixed_schedules_considered)
                 """
-                last_schedule = max(local_schedules, key=lambda x: x.start_time)
+                last_schedule = max(local_schedules, key=lambda x: x.start_time + timedelta(
+                    minutes=self.get_by_id(Surgery, x.surgery_id).duration
+                ))
                 vacancies.append((
                     room,
                     last_schedule.start_time + timedelta(
@@ -318,7 +341,7 @@ class CacheInDict(CacheManager):
     @staticmethod
     def get_table_classes() -> List[Type[SQLModel]]:
         """Retorna uma lista de classes de tabelas que devem ser carregadas no cache."""
-        return [Team, Professional, Patient, Schedule, Surgery, SurgeryPossibleTeams, Room]
+        return [Team, Professional, Patient, Schedule, Surgery, SurgeryPossibleTeams, Room, EmptySchedule]
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def load_all_data(self, session: Session):
@@ -437,11 +460,23 @@ class Algorithm:
         self.next_vacany_room = self.cache.get_available_rooms(self.next_vacany)[0]
         self._step = 0
         self.rooms_according_to_time = []
-        self.fixed_schedules_considered = []
+        self.fixed_schedules_considered = list[Schedule]()
+        self.empty_schedules_considered = list[EmptySchedule]()
+
+        self.__fixed_schedules_disregarded = []
 
     @property
     def step(self):
         return self._step
+
+    def get_next_fixed_schedule(self, room_id: int) -> Schedule:
+        if not self.__fixed_schedules_disregarded:
+            self.__fixed_schedules_disregarded = self.cache.get_by_attribute(Schedule, "fixed", True)
+
+        schs = [sch for sch in self.__fixed_schedules_disregarded if sch.room_id == room_id]
+        sch = min(schs, key=lambda x: self.how_close_schedule(x, self.next_vacany))
+        self.__fixed_schedules_disregarded.remove(sch)
+        return sch
 
     @step.setter
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -469,7 +504,8 @@ class Algorithm:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _get_sorted_vacancies(self) -> List[Tuple[Room, datetime]]:
         """Obtém e ordena as vagas disponíveis."""
-        vacanies = self.cache.get_next_vacancies(self.zero_time, self.fixed_schedules_considered)
+        vacanies = self.cache.get_next_vacancies(self.zero_time, self.fixed_schedules_considered,
+                                                 self.empty_schedules_considered)
         if not vacanies:
             raise ValueError("No vacancies found.")
         return sorted(vacanies, key=lambda x: x[1])
@@ -501,6 +537,14 @@ class Algorithm:
         if LogConfig.algorithm_details:
             self.print_table()
 
+    @staticmethod
+    def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:
+        n = sch.start_time - ntime
+        if n < timedelta():
+            return timedelta(days=999999999)
+        else:
+            return n
+
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def process_room(self, solution: List[int], available_teams: List[Team]):
         assert self.surgeries, "Sem cirurgias."
@@ -508,6 +552,7 @@ class Algorithm:
         assert self.cache.get_table(Room), "Sem salas."
 
         self._process_room_with_teams(self.next_vacany_room, solution, available_teams)
+        quit()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _process_room_with_teams(self, room: Room, solution: List[int], available_teams: List[Team]):
@@ -529,35 +574,38 @@ class Algorithm:
 
         surgery = self.cache.get_next_surgery(self.surgeries, team)
 
-        """
-        verificar se o tamanho da vaga é suficiente para a cirurgia
-        se não for, tentar procurar uma cirurgia que caiba na vaga
-        e preencha o restante com espaço vazio.
-        se não houver cirurgia que caiba, apenas preencher com espaço vazio.
-        verificar se é possível encaixar 2 ou mais cirurgias nessa vaga
-        
-        depois de preencher os espaços até o agendamento fixo, adicione o
-        agendamento fixo à fixed_schedules_considered
-        """
-        if surgery:
-            schedules = self.cache.get_by_attribute(Schedule, "room_id", room.id)
-            if any([schedule.fixed for schedule in schedules]):
-                schedule = min(schedules, key=lambda sch: abs(sch.start_time - self.next_vacany))
-                if timedelta() < schedule.start_time - self.next_vacany < timedelta(minutes=surgery.duration):
-                    """
-                    procurar por cirurgias que caibam no espaço restante
-                    """
+        schedules = filter(lambda x: x.fixed, self.cache.get_by_attribute(Schedule, "room_id", room.id))
+        if any([schedule.fixed for schedule in schedules]):
+            schedule = self.get_next_fixed_schedule(room.id)
 
-                    
-                elif schedule.start_time == self.next_vacany:
+            if surgery:
+                if timedelta() < schedule.start_time - self.next_vacany < timedelta(minutes=surgery.duration):
+                    self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                elif schedule.start_time - self.next_vacany == timedelta(minutes=surgery.duration):
                     return
                 else:
-                    self._register_surgery_and_update(surgery, team, room, self.next_vacany)
-                    """
-                    verificar se sobra espaço para outras cirurgias
-                    """
+                    interval = schedule.start_time - self.next_vacany
+                    if not self._try_other_teams(room, available_teams, interval=interval):
+                        empty_schedule = EmptySchedule(
+                            room_id=room.id,
+                            start_time=self.next_vacany,
+                            duration=int(interval.total_seconds() // 60)
+                        )
+                        self.fixed_schedules_considered.append(schedule)
+                        self.empty_schedules_considered.append(empty_schedule)
             else:
-                self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                interval = schedule.start_time - self.next_vacany
+                if not self._try_other_teams(room, available_teams, interval=interval):
+                    empty_schedule = EmptySchedule(
+                        room_id=room.id,
+                        start_time=self.next_vacany,
+                        duration=int(interval.total_seconds() // 60)
+                    )
+                    self.fixed_schedules_considered.append(schedule)
+                    self.empty_schedules_considered.append(empty_schedule)
+
+        if surgery:
+            self._register_surgery_and_update(surgery, team, room, self.next_vacany)
         else:
             if not self._try_other_teams(room, available_teams):
                 self._try_global_teams(room)
@@ -573,8 +621,13 @@ class Algorithm:
         for team in available_teams:
             surgery = self.cache.get_next_surgery(self.surgeries, team)
             if surgery:
-                self._register_surgery_and_update(surgery, team, room, self.next_vacany)
-                return True
+                if interval:
+                    if timedelta() < timedelta(minutes=surgery.duration) < interval:
+                        self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                        return True
+                else:
+                    self._register_surgery_and_update(surgery, team, room, self.next_vacany)
+                    return True
         return False
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -583,7 +636,9 @@ class Algorithm:
             surgery = self.cache.get_next_surgery(self.surgeries, team)
             if surgery:
                 schedules = self.cache.get_by_attribute(Schedule, "team_id", team.id)
-                last_schedule = max(schedules, key=lambda x: x.start_time)
+                last_schedule = max(schedules, key=lambda x: x.start_time + timedelta(
+                    minutes=self.cache.get_by_id(Surgery, x.surgery_id).duration
+                ))
                 start_time = last_schedule.start_time + timedelta(minutes=surgery.duration)
                 _room = self.cache.get_by_id(Room, last_schedule.room_id)
 
@@ -675,7 +730,9 @@ from datetime import datetime
 
 
 if __name__ == "__main__":
+
     engine = create_engine(os.getenv("DB_URL"))
+    SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
         try:

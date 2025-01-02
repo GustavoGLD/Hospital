@@ -1,4 +1,5 @@
 import os
+import random
 import unittest
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -520,13 +521,33 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         ]
         self.session.add_all(self.rooms)
 
+        now = datetime.now()
+        num_schedules = random.randint(1, 15)
+        surgery_ids = list(range(1, 21))  # IDs de cirurgia disponíveis
+        room_ids = list(range(1, 6))  # IDs de sala disponíveis
+        team_ids = list(range(1, 11))  # IDs de equipe disponíveis
+
+        random.shuffle(surgery_ids)
+        schedules = [
+            Schedule(
+                start_time=now + timedelta(minutes=random.randint(0, 720)),
+                surgery_id=surgery_id,
+                room_id=random.choice(room_ids),
+                team_id=random.choice(team_ids),
+            )
+            for surgery_id in surgery_ids[:num_schedules]
+        ]
+
+        for schedule in schedules:
+            logger.info(f"{schedule}")
+
+        self.session.add_all(schedules)
+
         # Commit para salvar todos os dados na sessão
         self.session.commit()
 
         self.cache = CacheInDict(session=self.session)
         self.cache.load_all_data(self.session)
-
-        now = datetime.now()
 
         # Criar uma instância do algoritmo
         self.algorithm = Algorithm(self.cache, now)

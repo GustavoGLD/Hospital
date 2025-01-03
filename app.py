@@ -189,7 +189,7 @@ class CacheManager(ABC):
         if not possibles:
             logger.error(f"this team didn't have any corresponding surgery "
                          f"{team.name} (ID={team.id}): ")
-                         # f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
+            # f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
             return None
 
         psb_cgrs = []
@@ -213,8 +213,8 @@ class CacheManager(ABC):
         surgery = self._find_surgery_by_time_and_room(time, room)
         if surgery:
             return surgery
-        #occupied_intervals = self._get_room_schedule_intervals(room)
-        #self._raise_schedule_error(time, room, occupied_intervals)
+        # occupied_intervals = self._get_room_schedule_intervals(room)
+        # self._raise_schedule_error(time, room, occupied_intervals)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _find_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
@@ -245,7 +245,7 @@ class CacheManager(ABC):
     def _raise_schedule_error(time: datetime, room: Room, intervals: List[Tuple[datetime, datetime]]):
         """Lança uma exceção com informações detalhadas sobre os intervalos ocupados."""
         logger.critical(f"No surgery found for room {room.name} at {time}: {intervals}")
-        #raise ValueError(f"No surgery found for room {room.name} at {time}: {intervals}")
+        # raise ValueError(f"No surgery found for room {room.name} at {time}: {intervals}")
         quit()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -256,7 +256,8 @@ class CacheManager(ABC):
             surgery = self.get_surgery_by_time_and_room(time, room)
             if surgery:
                 schedule = self.get_by_attribute(Schedule, "surgery_id", surgery.id)[0]
-                _dict[room.name] = f"{self.get_by_id(Team, schedule.team_id).name} - {surgery.name} - {surgery.duration}min"
+                _dict[
+                    room.name] = f"{self.get_by_id(Team, schedule.team_id).name} - {surgery.name} - {surgery.duration}min"
             else:
                 _dict[room.name] = "None"
         return _dict
@@ -457,7 +458,7 @@ class Algorithm:
         self.surgeries: List[Surgery] = copy(self.cache.get_table(Surgery))
         self.zero_time = zero_time
         self.next_vacany = zero_time
-        self.next_vacany_room = self.cache.get_available_rooms(self.next_vacany)[0]
+        self.next_vacany_room = self.get_first_next_vacany_room()
         self._step = 0
         self.rooms_according_to_time = []
         self.fixed_schedules_considered = list[Schedule]()
@@ -468,6 +469,12 @@ class Algorithm:
     @property
     def step(self):
         return self._step
+
+    def get_first_next_vacany_room(self) -> Room:
+        if v := self.cache.get_available_rooms(self.next_vacany):
+            return v[0]
+        else:
+            raise ValueError(f"No rooms available at {self.next_vacany}: {self.cache.get_table(Schedule)}")
 
     def get_next_fixed_schedule(self, room_id: int) -> Schedule:
         if not self.__fixed_schedules_disregarded:
@@ -485,7 +492,7 @@ class Algorithm:
 
     def print_table(self):
         df = pd.DataFrame(self.rooms_according_to_time)
-        #logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+        # logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_vacany(self) -> Tuple[Room, datetime]:
@@ -537,7 +544,7 @@ class Algorithm:
         if LogConfig.algorithm_details:
             self.print_table()
 
-        #quit()
+        # quit()
 
     @staticmethod
     def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:
@@ -698,7 +705,9 @@ class Optimizer:
                 if LogConfig.optimizer_details:
                     logger.debug(f"Punishment: {punishment}")
                 return -punishment
+
             return function2(self, ga_instance, solution, solution_idx)
+
         return function
 
     @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
@@ -728,7 +737,6 @@ class Optimizer:
 
 from sqlmodel import create_engine, Session
 from datetime import datetime
-
 
 if __name__ == "__main__":
 

@@ -34,8 +34,8 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = True
-    optimizer_details: bool = False
+    algorithm_details: bool = False
+    optimizer_details: bool = True
 
 
 class Team(SQLModel, table=True):
@@ -485,7 +485,7 @@ class Algorithm:
 
     def print_table(self):
         df = pd.DataFrame(self.rooms_according_to_time)
-        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+        #logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_vacany(self) -> Tuple[Room, datetime]:
@@ -537,6 +537,8 @@ class Algorithm:
         if LogConfig.algorithm_details:
             self.print_table()
 
+        #quit()
+
     @staticmethod
     def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:
         n = sch.start_time - ntime
@@ -552,7 +554,6 @@ class Algorithm:
         assert self.cache.get_table(Room), "Sem salas."
 
         self._process_room_with_teams(self.next_vacany_room, solution, available_teams)
-        quit()
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _process_room_with_teams(self, room: Room, solution: List[int], available_teams: List[Team]):
@@ -676,7 +677,7 @@ class Optimizer:
         except Exception as e:
             logger.error(f"Error in fitness function: {e}")
             return -float("inf")
-        punishment = self.cache.calculate_punishment(self.zero_time)
+        punishment = algorithm.cache.calculate_punishment(self.zero_time)
         if LogConfig.optimizer_details:
             logger.debug(f"Punishment: {punishment}")
         return -punishment
@@ -693,7 +694,7 @@ class Optimizer:
                 except Exception as e:
                     logger.error(f"Error in fitness function: {e}")
                     return -float("inf")
-                punishment = self.cache.calculate_punishment(self.zero_time)
+                punishment = algorithm.cache.calculate_punishment(self.zero_time)
                 if LogConfig.optimizer_details:
                     logger.debug(f"Punishment: {punishment}")
                 return -punishment

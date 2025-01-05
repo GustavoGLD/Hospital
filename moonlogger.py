@@ -18,7 +18,7 @@ class MoonLogger:
                     # Log dos argumentos da função
                     func_args = inspect.signature(func).bind(*args, **kwargs).arguments
                     func_args_str = ", ".join(map("{0[0]} = {0[1]!r}".format, func_args.items()))
-                    logger.debug(f"{func.__qualname__}({func_args_str})".replace('{', '[').replace('}', ']'))
+                    logger.opt(depth=2).debug(f"{func.__qualname__}({func_args_str})".replace('{', '[').replace('}', ']'))
 
                 # Execução da função
                 result = func(*args, **kwargs)
@@ -36,7 +36,7 @@ class MoonLogger:
 
                 if enabled:
                     # Log do resultado da função e do tempo gasto
-                    logger.debug(f"{func.__qualname__} -> {result!r}".replace('{', '[').replace('}', ']'))
+                    logger.opt(depth=2).debug(f"{func.__qualname__} -> {result!r}".replace('{', '[').replace('}', ']'))
 
                 return result
 

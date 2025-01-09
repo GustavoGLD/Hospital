@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy, copy
 from datetime import datetime, timedelta
-from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict
+from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict, Any
 from unittest.mock import MagicMock
 
 import pandas as pd
-import pygad
+import pygad  # type: ignore
 from loguru import logger
 from pydantic import computed_field
 from sqlmodel import Field, SQLModel, Relationship
@@ -20,6 +20,8 @@ load_dotenv()
 
 T = TypeVar("T")
 M = TypeVar("M", bound=SQLModel)
+
+logger.add("app.log", rotation="10 MB", retention="10 days", level="DEBUG")
 
 
 class DefaultConfig:
@@ -34,8 +36,11 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = False
-    optimizer_details: bool = True
+    algorithm_details: bool = True
+    optimizer_details: bool = False
+
+
+additional_tests = False
 
 
 class Team(SQLModel, table=True):
@@ -56,7 +61,7 @@ class Professional(SQLModel, table=True):
 
 
 class Room(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: int = Field(default=None, primary_key=True, index=True)
     name: str
 
     schedules: List["Schedule"] = Relationship(back_populates="room")
@@ -99,7 +104,6 @@ class EmptySchedule(SQLModel, table=True):
     duration: int
 
     @computed_field
-    @property
     def end_time(self) -> datetime:
         return self.start_time + timedelta(minutes=self.duration)
 
@@ -127,7 +131,11 @@ class CacheManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
+    def get_by_attribute(self, table: Type[M], attribute: str, value: Any) -> List[M]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
         raise NotImplementedError
 
     @abstractmethod
@@ -192,10 +200,25 @@ class CacheManager(ABC):
             # f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
             return None
 
+        for surgery in surgeries:
+            if surgery.id in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]:
+                logger.error(f"this surgery is already scheduled: {surgery.name}\n{surgery=}")
+                logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
+                quit()
+
+            if sch := self.get_by_attribute(Schedule, "surgery_id", surgery.id):
+                if sch[0].fixed:
+                    logger.error(f"we can't schedule this surgery: {surgery.name} because it's fixed")
+                    logger.error(f"{sch[0]=}")
+                    quit()
+
         psb_cgrs = []
         for schedule in possibles:
+            #logger.debug(f"{schedule.team_id == team.id=}")
+            #logger.debug(f"{schedule.surgery_id in [surgery.id for surgery in surgeries]=}")
+            #logger.debug(f"{schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]=}")
             if schedule.team_id == team.id and schedule.surgery_id in [surgery.id for surgery in surgeries]:
-                if schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule)]:
+                if schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]:
                     psb_cgrs.append(self.get_by_id(Surgery, schedule.surgery_id))
 
         if not psb_cgrs:
@@ -207,24 +230,55 @@ class CacheManager(ABC):
         return surgeries[0]
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
+    def get_surgery_by_time_and_room(self, time: datetime, room: Room) \
+            -> Union[tuple[Surgery, Schedule], tuple[None, None], tuple[None, EmptySchedule]]:
         """Retorna a cirurgia agendada para um horário e sala específicos."""
         assert self.get_table(Schedule), "No schedules found in cache."
-        surgery = self._find_surgery_by_time_and_room(time, room)
-        if surgery:
-            return surgery
+        surgery, schedule = self._find_surgery_by_time_and_room(time, room)
+        return surgery, schedule
         # occupied_intervals = self._get_room_schedule_intervals(room)
         # self._raise_schedule_error(time, room, occupied_intervals)
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _find_surgery_by_time_and_room(self, time: datetime, room: Room) -> Optional[Surgery]:
+    def _find_surgery_by_time_and_room(self, time: datetime, room: Room) \
+            -> Union[tuple[Surgery, Schedule], tuple[None, None], tuple[None, EmptySchedule]]:
         """Procura por uma cirurgia agendada para o horário e sala específicos."""
+        last_value: Union[tuple[Surgery, Schedule], tuple[None, None], tuple[None, EmptySchedule], None] = None
+
         for schedule in self.get_table(Schedule):
             if schedule.room_id == room.id:
                 final = schedule.start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
                 if schedule.start_time <= time < final:
-                    return self.get_by_id(Surgery, schedule.surgery_id)
-        return None
+                    value = self.get_by_id(Surgery, schedule.surgery_id), schedule
+                    logger.debug(f"{value=}")
+                    if True:
+                        if not last_value:
+                            last_value = value
+                        else:
+                            logger.error(f"More than one surgery found for room {room.name} at {time}: "
+                                         f"{last_value}, {value}")
+                            logger.error(f"{last_value[0].name}: \t {last_value[1].start_time} -> "
+                                         f"{last_value[1].start_time + timedelta(minutes=last_value[0].duration)}")
+                            logger.error(f"{value[0].name}: \t {value[1].start_time} -> "
+                                         f"{schedule.start_time + timedelta(minutes=value[0].duration)}")
+                            quit()
+                    else:
+                        return value
+
+        for emptysch in self.get_table(EmptySchedule):
+            if emptysch.room_id == room.id:
+                final = emptysch.start_time + timedelta(minutes=emptysch.duration)
+                if emptysch.start_time <= time < final:
+                    value = None, emptysch
+                    if not last_value:
+                        last_value = None, emptysch
+                    else:
+                        logger.error(f"More than one schedule found for room {room.name} at {time}")
+
+        if last_value:
+            return last_value
+        else:
+            return None, None
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _get_room_schedule_intervals(self, room: Room) -> List[Tuple[datetime, datetime]]:
@@ -253,13 +307,15 @@ class CacheManager(ABC):
         """Retorna um dicionário com todas as cirurgias agendadas para um horário específico."""
         _dict = {}
         for room in self.get_table(Room):
-            surgery = self.get_surgery_by_time_and_room(time, room)
-            if surgery:
-                schedule = self.get_by_attribute(Schedule, "surgery_id", surgery.id)[0]
+            surgery, schedule = self.get_surgery_by_time_and_room(time, room)
+            if surgery and type(schedule) == Schedule:
                 _dict[
                     room.name] = f"{self.get_by_id(Team, schedule.team_id).name} - {surgery.name} - {surgery.duration}min"
+            elif not surgery and type(schedule) == EmptySchedule:
+                _dict[room.name] = f"Empty Schedule - {schedule.duration}min"
             else:
                 _dict[room.name] = "None"
+            logger.info(f"{time} {_dict[room.name]}")
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -270,9 +326,6 @@ class CacheManager(ABC):
         schedules: list[Schedule | EmptySchedule] = self.get_table(Schedule)
         rooms = self.get_table(Room)
 
-        schedules.extend(fixed_schedules_considered)
-        schedules.extend(empty_schedules_considered)
-
         assert schedules, "No schedules found in cache."
         assert rooms, "No rooms found in cache."
 
@@ -282,22 +335,28 @@ class CacheManager(ABC):
                 schedule for schedule in schedules if schedule.room_id == room.id
             ]
 
+            #logger.debug(f"{local_schedules=}")
             # assert local_schedules, f"No schedules found for room {room.name}: {schedules}"
-            if not local_schedules:
+            if not [sch for sch in local_schedules if not sch.fixed]:
                 vacancies.append((room, zero_time))
             else:
                 """
                 considerar a ultimo (max) agendamento agendado entre:
                 agendamentos não fixos + agendamentos fixos já CONSIDERADOS (fixed_schedules_considered)
                 """
-                last_schedule = max(local_schedules, key=lambda x: x.start_time + timedelta(
-                    minutes=self.get_by_id(Surgery, x.surgery_id).duration
-                ))
+
+                _schedules = list[tuple[Union[Schedule, EmptySchedule], int]]()
+                all_sch = copy(local_schedules)
+                all_sch.extend(fixed_schedules_considered)
+                for schedule in all_sch:
+                    _schedules.append((schedule, self.get_by_id(Surgery, schedule.surgery_id).duration))
+                for emptysch in empty_schedules_considered:
+                    _schedules.append((emptysch, emptysch.duration))
+
+                last_schedule = max(_schedules, key=lambda x: x[0].start_time + timedelta(minutes=x[1]))
                 vacancies.append((
                     room,
-                    last_schedule.start_time + timedelta(
-                        minutes=self.get_by_id(Surgery, last_schedule.surgery_id).duration
-                    )
+                    last_schedule[0].start_time + timedelta(minutes=last_schedule[1])
                 ))
 
         return vacancies
@@ -318,7 +377,7 @@ class CacheManager(ABC):
             for schedule in self.get_by_attribute(Schedule, "room_id", room.id):
                 waiting_time = schedule.start_time - zero_time
                 if waiting_time.total_seconds() > 0:
-                    local_total += waiting_time.total_seconds() // 60
+                    local_total += int(waiting_time.total_seconds() // 60)
             per_room[room.id] = local_total
             global_total += local_total
 
@@ -329,7 +388,7 @@ class CacheInDict(CacheManager):
     def __init__(self, session: Optional[Session] = None):
         """Inicializa o cache e carrega os dados em memória de forma dinâmica."""
         if not hasattr(self, 'data'):
-            self.data = {cls.__tablename__: [] for cls in self.get_table_classes()}
+            self.data: dict[str, Any] = {cls.__tablename__: [] for cls in self.get_table_classes()}
             self.indexes = {}
             if session:
                 self.load_all_data(session)
@@ -385,7 +444,7 @@ class CacheInDict(CacheManager):
         raise ValueError(f"ID {_id} não encontrado na tabela '{tablename}'.")
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_by_attribute(self, table: Type[M], attribute: str, value: any) -> List[M]:
+    def get_by_attribute(self, table: Type[M], attribute: str, value: Any) -> List[M]:
         assert hasattr(table, attribute), f"Table '{table.__tablename__}' does not have attribute '{attribute}'."
 
         self._build_attribute_index(table, attribute)
@@ -416,6 +475,12 @@ class CacheInDict(CacheManager):
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
         """Registra uma cirurgia no cache e atualiza os índices."""
+        if additional_tests:
+            if self.get_by_attribute(Schedule, "surgery_id", surgery.id):
+                logger.error(f"this surgery is already scheduled: {surgery.name}")
+                logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
+                quit()
+
         if LogConfig.algorithm_details:
             logger.success(
                 f"Registering surgery {surgery.name} for team {team.name} in room {room.name} at {start_time}")
@@ -452,10 +517,48 @@ class CacheInDict(CacheManager):
             self.indexes[tablename][attribute][attr_value].append(new_schedule)
 
 
+class Solver:
+    def __init__(self, cache: CacheInDict):
+        self.cache = cache
+        self.zero_time = datetime.now()
+        self.mobile_surgeries = self.get_mobile_surgeries()
+
+    @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+    def gene_space(self):
+        _array = []
+        high = len(self.cache.get_table(Team)) - 1
+        decrements = len(self.cache.get_table(Room)) - 1
+
+        for i in range(len(self.mobile_surgeries)):
+            _array.append({"low": 0, "high": high})
+            if i < decrements:
+                high -= 1
+        return _array
+
+    @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
+    def get_mobile_surgeries(self):
+        fixed_surgeries = [self.cache.get_by_id(Surgery, sch.surgery_id)
+                           for sch in self.cache.get_by_attribute(Schedule, "fixed", True)]
+        mobile_surgeries = [surgery for surgery in self.cache.get_table(Surgery) if surgery not in fixed_surgeries]
+
+        if not mobile_surgeries:
+            logger.error("No mobile surgeries found.")
+            quit()
+
+        return mobile_surgeries
+
+    def set_solution(self, solution: List[int]):
+        if len(solution) != len(self.mobile_surgeries):
+            logger.error(f"Invalid solution. {len(solution)=}, {len(self.mobile_surgeries)=}")
+            quit()
+
+
 class Algorithm:
-    def __init__(self, cache: CacheManager = None, zero_time: datetime = datetime.now()):
+    def __init__(self, surgeries: List[Surgery], cache: CacheManager = None, zero_time: datetime = datetime.now()):
+        assert type(cache) == CacheInDict, f"Invalid cache type: {type(cache)}"
+
         self.cache = copy(cache)
-        self.surgeries: List[Surgery] = copy(self.cache.get_table(Surgery))
+        self.surgeries: List[Surgery] = copy(surgeries)
         self.zero_time = zero_time
         self.next_vacany = zero_time
         self.next_vacany_room = self.get_first_next_vacany_room()
@@ -470,20 +573,56 @@ class Algorithm:
     def step(self):
         return self._step
 
+    @step.setter
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def step(self, value):
+        self._step = value
+
+    @property
+    def fixed_schedules_considered(self):
+        return self.__fixed_schedules_considered
+
+    @fixed_schedules_considered.setter
+    @MoonLogger.log_func(enabled=True)
+    def fixed_schedules_considered(self, value):
+        self.__fixed_schedules_considered = value
+
+    @property
+    def empty_schedules_considered(self):
+        return self.__empty_schedules_considered
+
+    @empty_schedules_considered.setter
+    @MoonLogger.log_func(enabled=True)
+    def empty_schedules_considered(self, value):
+        self.__empty_schedules_considered = value
+
     def get_first_next_vacany_room(self) -> Room:
         if v := self.cache.get_available_rooms(self.next_vacany):
             return v[0]
         else:
             raise ValueError(f"No rooms available at {self.next_vacany}: {self.cache.get_table(Schedule)}")
 
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_fixed_schedule(self, room_id: int) -> Schedule:
         if not self.__fixed_schedules_disregarded:
             self.__fixed_schedules_disregarded = self.cache.get_by_attribute(Schedule, "fixed", True)
+            if not self.__fixed_schedules_disregarded:
+                logger.error("No fixed schedules found. There are no reasons to execute this method.")
+                logger.error(f'{self.cache.get_by_attribute(Schedule, "fixed", True)=}')
+                logger.error(f'{[sch for sch in self.cache.get_table(Schedule) if sch.fixed]=}')
+                logger.error(f'{self.cache.get_table(Schedule)=}')
+                quit()
 
-        schs = [sch for sch in self.__fixed_schedules_disregarded if sch.room_id == room_id]
-        sch = min(schs, key=lambda x: self.how_close_schedule(x, self.next_vacany))
-        self.__fixed_schedules_disregarded.remove(sch)
-        return sch
+        if schs := [sch for sch in self.__fixed_schedules_disregarded if sch.room_id == room_id]:
+            sch = min(schs, key=lambda x: self.how_close_schedule(x, self.next_vacany))
+            self.__fixed_schedules_disregarded.remove(sch)
+            return sch
+        else:
+            logger.error(f"No fixed schedules found for room {room_id}.")
+            logger.error(f"{self.__fixed_schedules_disregarded=}")
+            logger.error(f"{self.fixed_schedules_considered=}")
+            logger.error(f"{[self.cache.get_by_attribute(Schedule, 'fixed', True)]=}")
+            quit()
 
     @step.setter
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -492,7 +631,7 @@ class Algorithm:
 
     def print_table(self):
         df = pd.DataFrame(self.rooms_according_to_time)
-        # logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_vacany(self) -> Tuple[Room, datetime]:
@@ -524,7 +663,7 @@ class Algorithm:
         assert self.surgeries, "Sem cirurgias."
         assert self.cache.get_table(Team), "Sem equipes."
         assert self.cache.get_table(Room), "Sem salas."
-        assert len(solution) == len(self.surgeries), "Solução inválida."
+        assert len(solution) == len(self.surgeries), f"Solução inválida. {len(solution)=}, {len(self.surgeries)=}"
 
         while self.surgeries:
             available_teams = self.cache.get_available_teams(check_time=self.next_vacany)
@@ -538,13 +677,42 @@ class Algorithm:
                 })
                 if LogConfig.algorithm_details:
                     self.print_table()
-                self.print_table()
+
+            last_next_vacany = self.next_vacany
             self.next_vacany_room, self.next_vacany = self.get_next_vacany()
 
-        if LogConfig.algorithm_details:
-            self.print_table()
+            if additional_tests and last_next_vacany < self.next_vacany:
+                for room in self.cache.get_table(Room):
+                    if not self.cache.is_room_busy(room.id, self.next_vacany):
+                        for surg in self.surgeries:
+                            for pss_sch in self.cache.get_by_attribute(SurgeryPossibleTeams, "surgery_id", surg.id):
+                                if pss_sch.team_id in [team.id for team in available_teams]:
+                                    logger.warning(f"there is a surgery that can be scheduled in room {room.name} "
+                                                 f"at {self.next_vacany} but it's not being scheduled.")
+                                    logger.warning(f"{surg=}, {pss_sch=}, {available_teams=}")
 
-        # quit()
+        # montar um dataframe de todos os agendamentos em função do tempo
+        schedules_dict = []
+        for sch in self.cache.get_table(Schedule):
+            schedules_dict.append([{
+                "Tempo": sch.start_time,
+                **self.cache.get_dict_surgeries_by_time(sch.start_time)
+            }])
+        for emptysch in self.cache.get_table(EmptySchedule):
+            schedules_dict.append([{
+                "Tempo": emptysch.start_time,
+                **self.cache.get_dict_surgeries_by_time(emptysch.start_time)
+            }])
+        df = pd.DataFrame(schedules_dict)
+        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+        logger.debug(self.empty_schedules_considered)
+
+        if additional_tests:
+            surgs_scheduled = [sch.surgery_id for sch in self.cache.get_table(Schedule)]
+            for surg in self.cache.get_table(Surgery):
+                if surg.id not in surgs_scheduled:
+                    logger.error(f"this surgery wasn't scheduled: {surg=}")
+                    quit()
 
     @staticmethod
     def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:
@@ -582,16 +750,15 @@ class Algorithm:
 
         surgery = self.cache.get_next_surgery(self.surgeries, team)
 
-        schedules = filter(lambda x: x.fixed, self.cache.get_by_attribute(Schedule, "room_id", room.id))
-        if any([schedule.fixed for schedule in schedules]):
+        if any([schedule.fixed for schedule in self.__fixed_schedules_disregarded if schedule.room_id == room.id]):
             schedule = self.get_next_fixed_schedule(room.id)
 
             if surgery:
-                if timedelta() < schedule.start_time - self.next_vacany < timedelta(minutes=surgery.duration):
+                if timedelta(minutes=surgery.duration) >= schedule.start_time - self.next_vacany > timedelta():
+                    # a cirurgia cabe no intervalo
                     self._register_surgery_and_update(surgery, team, room, self.next_vacany)
-                elif schedule.start_time - self.next_vacany == timedelta(minutes=surgery.duration):
-                    return
                 else:
+                    # não é possível encaixar a cirurgia no horário disponível
                     interval = schedule.start_time - self.next_vacany
                     if not self._try_other_teams(room, available_teams, interval=interval):
                         empty_schedule = EmptySchedule(
@@ -600,7 +767,10 @@ class Algorithm:
                             duration=int(interval.total_seconds() // 60)
                         )
                         self.fixed_schedules_considered.append(schedule)
+                        self.__fixed_schedules_disregarded.remove(schedule)
                         self.empty_schedules_considered.append(empty_schedule)
+                        logger.success(f"Empty schedule created at {self.next_vacany}. {EmptySchedule=}")
+                        logger.success(f"New considered schedule: {empty_schedule}")
             else:
                 interval = schedule.start_time - self.next_vacany
                 if not self._try_other_teams(room, available_teams, interval=interval):
@@ -610,9 +780,12 @@ class Algorithm:
                         duration=int(interval.total_seconds() // 60)
                     )
                     self.fixed_schedules_considered.append(schedule)
+                    self.__fixed_schedules_disregarded.remove(schedule)
                     self.empty_schedules_considered.append(empty_schedule)
+                    logger.success(f"Empty schedule created at {self.next_vacany}. {EmptySchedule=}")
+                    logger.success(f"New considered schedule: {empty_schedule}")
 
-        if surgery:
+        elif surgery:
             self._register_surgery_and_update(surgery, team, room, self.next_vacany)
         else:
             if not self._try_other_teams(room, available_teams):
@@ -630,7 +803,8 @@ class Algorithm:
             surgery = self.cache.get_next_surgery(self.surgeries, team)
             if surgery:
                 if interval:
-                    if timedelta() < timedelta(minutes=surgery.duration) < interval:
+                    if timedelta(minutes=surgery.duration) >= interval > timedelta():
+                        # a cirurgia cabe no intervalo
                         self._register_surgery_and_update(surgery, team, room, self.next_vacany)
                         return True
                 else:
@@ -652,15 +826,19 @@ class Algorithm:
 
                 self._register_surgery_and_update(surgery, team, _room, start_time)
                 return
-        logger.error(f"No surgery found for any team. {self.surgeries=}")
-        raise ValueError("No surgery found for any team.")
+        logger.error(f"No surgery found for any team.\n{self.surgeries=}\n{self.cache.get_table(SurgeryPossibleTeams)=}")
+        # raise ValueError("No surgery found for any team.")
+        quit()
 
 
 class Optimizer:
     def __init__(self, cache: CacheInDict = None):
+        assert type(cache) == CacheInDict, f"Invalid cache type: {type(cache)}"
+
         self.cache = cache
         self.zero_time = datetime.now()
-        self.algorithm = Algorithm(cache, self.zero_time)
+        self.solver = Solver(cache)
+        self.algorithm = Algorithm(self.solver.mobile_surgeries, cache, self.zero_time)
 
     @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
     def gene_space(self) -> List[Dict[str, int]]:
@@ -678,7 +856,7 @@ class Optimizer:
     def function2(self, ga_instance, solution, solution_idx):
         if LogConfig.optimizer_details:
             logger.debug(f"Solution: {solution}, {solution_idx=}")
-        algorithm = Algorithm(self.cache)
+        algorithm = Algorithm(self.solver.mobile_surgeries, cache, self.zero_time)
         try:
             algorithm.execute(solution)
         except Exception as e:
@@ -695,10 +873,11 @@ class Optimizer:
             def function2(self, ga_instance, solution, solution_idx):
                 if LogConfig.optimizer_details:
                     logger.debug(f"Solution: {solution}, {solution_idx=}")
-                algorithm = Algorithm(self.cache)
+                algorithm = Algorithm(self.solver.mobile_surgeries, self.cache, self.zero_time)
                 try:
                     algorithm.execute(solution)
                 except Exception as e:
+
                     logger.error(f"Error in fitness function: {e}")
                     return -float("inf")
                 punishment = algorithm.cache.calculate_punishment(self.zero_time)
@@ -712,7 +891,7 @@ class Optimizer:
 
     @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
     def run(self) -> List[int]:
-        gene_space_array = self.gene_space()
+        gene_space_array = self.solver.gene_space()
 
         ga_instance = pygad.GA(
             num_generations=DefaultConfig.num_generations,
@@ -740,7 +919,7 @@ from datetime import datetime
 
 if __name__ == "__main__":
 
-    engine = create_engine(os.getenv("DB_URL"))
+    engine = create_engine(str(os.getenv("DB_URL")))
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:

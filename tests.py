@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 
 from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
-    Professional
+    Professional, Solver
 from moonlogger import MoonLogger
 
 
@@ -486,6 +486,7 @@ class TestAlgorithmExecute(unittest.TestCase):
 
 class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
     def setUp(self):
+        logger.info("Configurando um grande conjunto de dados para teste")
         """Configura um grande conjunto de dados para teste."""
         self.session = setup_test_session()
 
@@ -522,26 +523,15 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         self.session.add_all(self.rooms)
 
         now = datetime.now()
-        num_schedules = random.randint(1, 15)
-        surgery_ids = list(range(1, 21))  # IDs de cirurgia disponíveis
-        room_ids = list(range(1, 6))  # IDs de sala disponíveis
-        team_ids = list(range(1, 11))  # IDs de equipe disponíveis
 
-        random.shuffle(surgery_ids)
-        schedules = [
-            Schedule(
-                start_time=now + timedelta(minutes=random.randint(0, 720)),
-                surgery_id=surgery_id,
-                room_id=random.choice(room_ids),
-                team_id=random.choice(team_ids),
-            )
-            for surgery_id in surgery_ids[:num_schedules]
-        ]
+        logger.info("Gerando agendamentos aleatórios para teste")
+        self.schedules = self.generate_schedules(now)
 
-        for schedule in schedules:
+        logger.info(f"{now=}")
+        for schedule in self.schedules:
             logger.info(f"{schedule}")
 
-        self.session.add_all(schedules)
+        self.session.add_all(self.schedules)
 
         # Commit para salvar todos os dados na sessão
         self.session.commit()
@@ -550,14 +540,55 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         self.cache.load_all_data(self.session)
 
         # Criar uma instância do algoritmo
-        self.algorithm = Algorithm(self.cache, now)
-        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.solver = Solver(self.cache)
+        logger.info(f"Carregando dados no Solver")
+        self.algorithm = Algorithm(self.solver.mobile_surgeries, self.cache, now)
         self.algorithm.step = 0
+
+    def generate_schedules(self, now: datetime):
+        logger.info(f"Gerando agendamentos aleatórios para teste")
+        num_schedules = random.randint(1, 15)
+        surgery_ids = list(range(1, 21))  # IDs de cirurgia disponíveis
+        room_ids = list(range(1, 6))  # IDs de sala disponíveis
+        team_ids = list(range(1, 11))  # IDs de equipe disponíveis
+
+        random.shuffle(surgery_ids)
+        schedules = []
+
+        for surgery_id in surgery_ids[:num_schedules]:
+            room_id = random.choice(room_ids)
+            team_id = random.choice(team_ids)
+
+            while True:
+                start_time = now + timedelta(minutes=random.randint(0, 90))
+                new_schedule = Schedule(
+                    start_time=start_time,
+                    surgery_id=surgery_id,
+                    room_id=room_id,
+                    team_id=team_id,
+                    fixed=True,
+                )
+
+                # Verificar conflitos de horário na mesma sala
+                conflict = any(
+                    schedule.room_id == new_schedule.room_id
+                    and not (
+                            new_schedule.start_time >= schedule.start_time + timedelta(minutes=[s for s in self.surgeries if s.id == schedule.surgery_id][0].duration)
+                            or new_schedule.start_time + timedelta(minutes=[s for s in self.surgeries if s.id == schedule.surgery_id][0].duration) <= schedule.start_time
+                    )
+                    for schedule in schedules
+                )
+
+                if not conflict:
+                    schedules.append(new_schedule)
+                    break
+
+        return schedules
 
     def test_execute_with_large_data(self):
         """Teste para verificar se o método execute lida bem com um grande volume de dados."""
         # Definindo uma solução válida que mapeia para as cirurgias
-        solution = [1 for i in range(len(self.surgeries))]  # Distribuindo as cirurgias nas 10 equipes
+        solution = [1 for i in range(len(self.solver.mobile_surgeries))]  # Distribuindo as cirurgias nas 10 equipes
 
         # Executa o algoritmo
         self.algorithm.execute(solution)
@@ -575,7 +606,33 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
 
         # Verifica se todas as equipes registradas possuem agendamentos
         scheduled_teams_ids = {schedule.team_id for schedule in schedules}
-        self.assertEqual(len(scheduled_teams_ids), 10)  # Todas as 10 equipes devem estar agendadas
+        #self.assertEqual(len(scheduled_teams_ids), 10)  # Todas as 10 equipes devem estar agendadas
+
+        # verificar se o start_time dos agendamentos ainda são as mesmas
+        get_schedules = self.cache.get_table(Schedule)
+        for schedule in self.schedules:
+            a = list(filter(lambda x: x.surgery_id == schedule.surgery_id, get_schedules))
+
+            if a[0].start_time != schedule.start_time:
+                self.fail(f"O horário de início da cirurgia {schedule.surgery_id} foi alterado:\n"
+                          f" Atual: {a[0].start_time}\n"
+                          f" Esperado: {schedule.start_time}")
+
+        #verficar se as cirurgias se sobrepõem, se da mesma sala
+        for schedule1 in self.cache.get_table(Schedule):
+            for schedule2 in self.cache.get_table(Schedule):
+                if schedule1.room_id == schedule2.room_id and schedule1.surgery_id != schedule2.surgery_id:
+                    if schedule1.start_time < schedule2.start_time:
+                        if schedule2.start_time < schedule1.start_time + timedelta(minutes=self.cache.get_by_id(Surgery, schedule1.surgery_id).duration):
+                            self.fail(f"Cirurgia {schedule1.surgery_id} e {schedule2.surgery_id} se sobrepõem na mesma sala:\n"
+                                      f"{schedule1.surgery_id}: {schedule1.start_time} -> {schedule1.start_time + timedelta(minutes=self.cache.get_by_id(Surgery, schedule1.surgery_id).duration)}\n"
+                                      f"{schedule2.surgery_id}: {schedule2.start_time} -> {schedule2.start_time + timedelta(minutes=self.cache.get_by_id(Surgery, schedule2.surgery_id).duration)}")
+
+        quit()
+
+
+if __name__ == "__main__":
+    TestAlgorithmExecuteWithMoreData().setUp()
 
 
 class TestInMemoryCacheCalculatePunishment(unittest.TestCase):

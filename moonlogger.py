@@ -4,7 +4,7 @@ from loguru import logger
 
 
 class MoonLogger:
-    time_dict = {}  # Dicionário estático para armazenar o tempo total por função
+    time_dict = dict[str, float]()  # Dicionário estático para armazenar o tempo total por função
 
     @staticmethod
     def log_func(enabled: bool = True):

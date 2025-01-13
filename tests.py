@@ -1,6 +1,7 @@
 import os
 import random
 import unittest
+from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
@@ -546,8 +547,8 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         self.algorithm.step = 0
 
     def generate_schedules(self, now: datetime):
-        logger.info(f"Gerando agendamentos aleatórios para teste")
-        num_schedules = random.randint(1, 15)
+        logger.info("Gerando agendamentos aleatórios para teste")
+        num_schedules = random.randint(5, 8)
         surgery_ids = list(range(1, 21))  # IDs de cirurgia disponíveis
         room_ids = list(range(1, 6))  # IDs de sala disponíveis
         team_ids = list(range(1, 11))  # IDs de equipe disponíveis
@@ -559,29 +560,56 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
             room_id = random.choice(room_ids)
             team_id = random.choice(team_ids)
 
-            while True:
-                start_time = now + timedelta(minutes=random.randint(0, 90))
-                new_schedule = Schedule(
-                    start_time=start_time,
-                    surgery_id=surgery_id,
-                    room_id=room_id,
-                    team_id=team_id,
-                    fixed=True,
+            attempts = 0
+            max_attempts = 10  # Limite para evitar loops infinitos
+            while attempts < max_attempts:
+                attempts += 1
+
+                # Gerar tempo inicial aleatório
+                start_time = now + timedelta(minutes=random.randint(0, 720))  # 12 horas de intervalo
+                surgery_duration = next(
+                    (s.duration for s in self.surgeries if s.id == surgery_id),
+                    None
                 )
 
-                # Verificar conflitos de horário na mesma sala
-                conflict = any(
-                    schedule.room_id == new_schedule.room_id
-                    and not (
-                            new_schedule.start_time >= schedule.start_time + timedelta(minutes=[s for s in self.surgeries if s.id == schedule.surgery_id][0].duration)
-                            or new_schedule.start_time + timedelta(minutes=[s for s in self.surgeries if s.id == schedule.surgery_id][0].duration) <= schedule.start_time
-                    )
-                    for schedule in schedules
-                )
+                if surgery_duration is None:
+                    logger.error(f"Duração não encontrada para a cirurgia {surgery_id}")
+                    break  # Sai do loop, já que não podemos calcular horários
+
+                new_end_time = start_time + timedelta(minutes=surgery_duration)
+                conflict = False
+
+                # Verificar conflitos com agendamentos existentes
+                for schedule in schedules:
+                    if schedule.room_id == room_id:
+                        scheduled_duration = next(
+                            (s.duration for s in self.surgeries if s.id == schedule.surgery_id),
+                            None
+                        )
+                        if scheduled_duration is None:
+                            continue
+
+                        existing_end_time = schedule.start_time + timedelta(minutes=scheduled_duration)
+
+                        # Verificar sobreposição de horários
+                        if not (new_end_time <= schedule.start_time or start_time >= existing_end_time):
+                            conflict = True
+                            break
 
                 if not conflict:
-                    schedules.append(new_schedule)
+                    # Adicionar agendamento se não houver conflito
+                    schedules.append(
+                        Schedule(
+                            start_time=start_time,
+                            surgery_id=surgery_id,
+                            room_id=room_id,
+                            team_id=team_id,
+                            fixed=True,
+                        )
+                    )
                     break
+            else:
+                logger.warning(f"Não foi possível agendar a cirurgia {surgery_id} após {max_attempts} tentativas.")
 
         return schedules
 
@@ -628,6 +656,23 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
                                       f"{schedule1.surgery_id}: {schedule1.start_time} -> {schedule1.start_time + timedelta(minutes=self.cache.get_by_id(Surgery, schedule1.surgery_id).duration)}\n"
                                       f"{schedule2.surgery_id}: {schedule2.start_time} -> {schedule2.start_time + timedelta(minutes=self.cache.get_by_id(Surgery, schedule2.surgery_id).duration)}")
 
+        schdls = defaultdict(list)
+        for sch in schedules:
+            schdls[sch.room_id].append([sch, None])
+
+        #colocar em ordem de tempo
+        for key in schdls.keys():
+            schdls[key] = sorted(schdls[key], key=lambda x: x[0].start_time)
+
+        #printar todos os agendamentos por sala indicando horario inicial e final
+        for key in schdls.keys():
+            for sch in schdls[key]:
+                sch[1] = sch[0].start_time + timedelta(minutes=self.cache.get_by_id(Surgery, sch[0].surgery_id).duration)
+
+        logger.debug(f"{schdls}")
+        for key in schdls.keys():
+            for sch in schdls[key]:
+                logger.info(f"Sala {key} Cirurgia {sch[0].surgery_id}: {sch[0].start_time} -> {sch[1]}")
         quit()
 
 

@@ -24,6 +24,12 @@ M = TypeVar("M", bound=SQLModel)
 logger.add("app.log", rotation="10 MB", retention="10 days", level="DEBUG")
 
 
+def setup_test_session():
+    engine = create_engine("sqlite:///:memory:")  # Banco de dados em memória
+    SQLModel.metadata.create_all(engine)  # Cria as tabelas
+    return Session(engine)
+
+
 class DefaultConfig:
     num_generations = 25
     sol_per_pop = 50
@@ -36,8 +42,8 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = True
-    optimizer_details: bool = False
+    algorithm_details: bool = False
+    optimizer_details: bool = True
 
 
 additional_tests = False
@@ -250,8 +256,7 @@ class CacheManager(ABC):
                 final = schedule.start_time + timedelta(minutes=self.get_by_id(Surgery, schedule.surgery_id).duration)
                 if schedule.start_time <= time < final:
                     value = self.get_by_id(Surgery, schedule.surgery_id), schedule
-                    logger.debug(f"{value=}")
-                    if True:
+                    if additional_tests:
                         if not last_value:
                             last_value = value
                         else:
@@ -315,7 +320,6 @@ class CacheManager(ABC):
                 _dict[room.name] = f"Empty Schedule - {schedule.duration}min"
             else:
                 _dict[room.name] = "None"
-            logger.info(f"{time} {_dict[room.name]}")
         return _dict
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
@@ -338,15 +342,12 @@ class CacheManager(ABC):
             def is_room_empty() -> bool:
                 for sch in schedules:
                     if not sch.fixed and sch.room_id == room.id:
-                        logger.critical(f"{sch=}")
                         return False
                 for sch in empty_schedules_considered:
                     if sch.room_id == room.id:
-                        logger.critical(f"{sch=}")
                         return False
                 for sch in fixed_schedules_considered:
                     if sch.room_id == room.id:
-                        logger.critical(f"{sch=}")
                         return False
                 return True
 
@@ -699,7 +700,7 @@ class Algorithm:
         return sorted(vacanies, key=lambda x: x[1])
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def execute(self, solution: List[int]):
+    def execute(self, solution: List[int]) -> pd.DataFrame:
         self.step = 0
 
         assert self.surgeries, "Sem cirurgias."
@@ -720,7 +721,7 @@ class Algorithm:
                 if LogConfig.algorithm_details:
                     self.print_table()
 
-            if True:
+            if additional_tests:
                 schs = self.cache.get_by_attribute(Schedule, "room_id", self.next_vacany_room.id)
                 if not any([sch.start_time == self.next_vacany for sch in schs]):
                     logger.error(f"the schedule wasn't created in '{self.next_vacany_room.name}' at {self.next_vacany}")
@@ -750,9 +751,6 @@ class Algorithm:
                 "Tempo": emptysch.start_time,
                 **self.cache.get_dict_surgeries_by_time(emptysch.start_time)
             }])
-        df = pd.DataFrame(schedules_dict)
-        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
-        logger.debug(self.empty_schedules_considered)
 
         if additional_tests:
             surgs_scheduled = [sch.surgery_id for sch in self.cache.get_table(Schedule)]
@@ -760,6 +758,11 @@ class Algorithm:
                 if surg.id not in surgs_scheduled:
                     logger.error(f"this surgery wasn't scheduled: {surg=}")
                     quit()
+
+        df = pd.DataFrame([item for sublist in schedules_dict for item in sublist])
+        if LogConfig.algorithm_details:
+            logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+        return df
 
     @staticmethod
     def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:
@@ -799,13 +802,9 @@ class Algorithm:
 
         if any([sc.start_time > self.next_vacany for sc in self.cache.get_by_attribute(Schedule, "room_id", room.id)]):
             schedule = self.get_next_schedule(room.id, self.next_vacany)
-            logger.info(f"{schedule.start_time - self.next_vacany} = {schedule.start_time} - {self.next_vacany}")
 
             if surgery:
                 if schedule.start_time - self.next_vacany >= timedelta(minutes=surgery.duration) > timedelta():
-                    # a cirurgia cabe no intervalo
-                    logger.debug(
-                        f"{schedule=}\n{schedule.start_time - self.next_vacany=}\n{timedelta(minutes=surgery.duration)=}")
                     self._register_surgery_and_update(surgery, team, room, self.next_vacany)
                 else:
                     # não é possível encaixar a cirurgia no horário disponível
@@ -858,8 +857,8 @@ class Algorithm:
         for team in available_teams:
             surgery = self.cache.get_next_surgery(self.surgeries, team)
             if surgery:
-                if interval:
-                    logger.debug(f"{interval} >= {timedelta(minutes=surgery.duration)=} > {timedelta()=}")
+                if next_sch := self.get_next_schedule(room.id, self.next_vacany):
+                    interval = next_sch.start_time - self.next_vacany
                     if interval >= timedelta(minutes=surgery.duration) > timedelta():
                         # a cirurgia cabe no intervalo
                         self._register_surgery_and_update(surgery, team, room, self.next_vacany)
@@ -875,7 +874,7 @@ class Algorithm:
             schedules = list[Tuple[Union[Schedule, EmptySchedule], int]]()
 
             for sch in self.cache.get_table(Schedule):
-                if not sch.fixed and sch.room_id == room.id:
+                if sch.room_id == room.id:
                     schedules.append((sch, self.cache.get_by_id(Surgery, sch.surgery_id).duration))
             for sch in self.cache.get_table(EmptySchedule):
                 if sch.room_id == room.id:
@@ -1014,7 +1013,7 @@ if __name__ == "__main__":
             solution = optimizer.run()
 
             logger.info("Processando a solução...")
-            algorithm = Algorithm(cache)
+            algorithm = Algorithm(optimizer.solver.mobile_surgeries, cache, datetime.now())
             algorithm.execute(solution)
             algorithm.print_table()
 

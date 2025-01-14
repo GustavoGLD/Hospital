@@ -10,6 +10,7 @@ from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
+from tabulate import tabulate
 
 from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
     Professional, Solver, FixedSchedules
@@ -483,6 +484,82 @@ class TestAlgorithmExecute(unittest.TestCase):
         scheduled_surgeries_ids = [schedule.surgery_id for schedule in schedules]
         self.assertIn(1, scheduled_surgeries_ids)  # Cirurgia 1 deve estar agendada
         self.assertIn(2, scheduled_surgeries_ids)  # Cirurgia 2 deve estar agendada
+
+
+class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
+    def setUp(self):
+        """Configura um grande conjunto de dados para teste."""
+        self.session = setup_test_session()
+
+        # Criar e adicionar equipes na sessão
+        self.teams = [
+            Team(id=i, name=f"Equipe {i}") for i in range(1, 11)  # 10 equipes
+        ]
+        self.session.add_all(self.teams)
+
+        # Criar e adicionar pacientes na sessão
+        self.patients = [
+            Patient(id=i, name=f"Paciente {i}") for i in range(1, 21)  # 20 pacientes
+        ]
+        self.session.add_all(self.patients)
+
+        # Criar e adicionar cirurgias na sessão
+        self.surgeries = [
+            Surgery(id=i, name=f"Cirurgia {i}", duration=(i + 1) * 30, patient_id=(i % 20) + 1, priority=i % 5 + 1)
+            for i in range(1, 21)  # 20 cirurgias
+        ]
+        self.session.add_all(self.surgeries)
+
+        # Criar possíveis equipes para as cirurgias
+        surgery_possible_teams = [
+            SurgeryPossibleTeams(surgery_id=i, team_id=(i % 10) + 1) for i in range(1, 21)
+            # Cada cirurgia associada a uma equipe
+        ]
+        self.session.add_all(surgery_possible_teams)
+
+        # Criar salas
+        self.rooms = [
+            Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
+        ]
+        self.session.add_all(self.rooms)
+
+        # Commit para salvar todos os dados na sessão
+        self.session.commit()
+
+        self.cache = CacheInDict(session=self.session)
+        self.cache.load_all_data(self.session)
+
+        now = datetime.now()
+
+        # Criar uma instância do algoritmo
+        self.algorithm = Algorithm(self.surgeries, self.cache, now)
+        self.algorithm.surgeries = self.cache.get_table(Surgery)
+        self.algorithm.next_vacany = now
+        self.algorithm.step = 0
+
+    def test_execute_with_large_data(self):
+        """Teste para verificar se o método execute lida bem com um grande volume de dados."""
+        # Definindo uma solução válida que mapeia para as cirurgias
+        solution = [1 for i in range(len(self.surgeries))]  # Distribuindo as cirurgias nas 10 equipes
+
+        # Executa o algoritmo
+        df = self.algorithm.execute(solution)
+        logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+
+        # Verifica que as cirurgias foram agendadas corretamente
+        schedules = self.algorithm.cache.get_table(Schedule)
+
+        # Esperamos que todas as cirurgias sejam agendadas
+        self.assertEqual(len(schedules), 20)  # Todas as 20 cirurgias devem estar agendadas
+
+        scheduled_surgeries_ids = [schedule.surgery_id for schedule in schedules]
+
+        for surgery in self.surgeries:
+            self.assertIn(surgery.id, scheduled_surgeries_ids)  # Cada cirurgia deve estar agendada
+
+        # Verifica se todas as equipes registradas possuem agendamentos
+        scheduled_teams_ids = {schedule.team_id for schedule in schedules}
+        self.assertEqual(len(scheduled_teams_ids), 10)  # Todas as 10 equipes devem estar agendadas
 
 
 class TestFixedSchedulesExecute(unittest.TestCase):

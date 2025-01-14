@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 
 from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
-    Professional, Solver
+    Professional, Solver, FixedSchedules
 from moonlogger import MoonLogger
 
 
@@ -485,7 +485,7 @@ class TestAlgorithmExecute(unittest.TestCase):
         self.assertIn(2, scheduled_surgeries_ids)  # Cirurgia 2 deve estar agendada
 
 
-class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
+class TestFixedSchedulesExecute(unittest.TestCase):
     def setUp(self):
         logger.info("Configurando um grande conjunto de dados para teste")
         """Configura um grande conjunto de dados para teste."""
@@ -543,7 +543,7 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         # Criar uma instância do algoritmo
         self.solver = Solver(self.cache)
         logger.info(f"Carregando dados no Solver")
-        self.algorithm = Algorithm(self.solver.mobile_surgeries, self.cache, now)
+        self.algorithm = FixedSchedules(self.solver.mobile_surgeries, self.cache, now)
         self.algorithm.step = 0
 
     def generate_schedules(self, now: datetime):
@@ -673,11 +673,10 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
         for key in schdls.keys():
             for sch in schdls[key]:
                 logger.info(f"Sala {key} Cirurgia {sch[0].surgery_id}: {sch[0].start_time} -> {sch[1]}")
-        quit()
 
 
 if __name__ == "__main__":
-    TestAlgorithmExecuteWithMoreData().setUp()
+    TestFixedSchedulesExecute().setUp()
 
 
 class TestInMemoryCacheCalculatePunishment(unittest.TestCase):

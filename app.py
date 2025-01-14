@@ -500,18 +500,7 @@ class CacheInDict(CacheManager):
                 logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
                 quit()
 
-        # verificar se sobrepõe com outra cirurgia
-        for schedule in self.get_table(Schedule):
-            if schedule.room_id == room.id:
-                other_surgery = self.get_by_id(Surgery, schedule.surgery_id)
-                other_end_time = schedule.start_time + timedelta(minutes=other_surgery.duration)
-                if (schedule.start_time < start_time < other_end_time) or \
-                        (schedule.start_time < start_time + timedelta(minutes=surgery.duration) < other_end_time):
-                    logger.error(f"this surgery overlaps with another surgery: {surgery}")
-                    logger.error(f"{surgery.name}: {start_time} -> {start_time + timedelta(minutes=surgery.duration)}")
-                    logger.error(f"{schedule.surgery_id}: {schedule.start_time} -> {other_end_time}")
-                    logger.error(f"{schedule=}")
-                    quit()
+            self.check_superposition(room, start_time, surgery)
 
         if LogConfig.algorithm_details:
             logger.success(
@@ -547,6 +536,20 @@ class CacheInDict(CacheManager):
             if attr_value not in self.indexes[tablename][attribute]:
                 self.indexes[tablename][attribute][attr_value] = []
             self.indexes[tablename][attribute][attr_value].append(new_schedule)
+
+    def check_superposition(self, room, start_time, surgery):
+        # verificar se sobrepõe com outra cirurgia
+        for schedule in self.get_table(Schedule):
+            if schedule.room_id == room.id:
+                other_surgery = self.get_by_id(Surgery, schedule.surgery_id)
+                other_end_time = schedule.start_time + timedelta(minutes=other_surgery.duration)
+                if (schedule.start_time < start_time < other_end_time) or \
+                        (schedule.start_time < start_time + timedelta(minutes=surgery.duration) < other_end_time):
+                    logger.error(f"this surgery overlaps with another surgery: {surgery}")
+                    logger.error(f"{surgery.name}: {start_time} -> {start_time + timedelta(minutes=surgery.duration)}")
+                    logger.error(f"{schedule.surgery_id}: {schedule.start_time} -> {other_end_time}")
+                    logger.error(f"{schedule=}")
+                    quit()
 
 
 class Solver:

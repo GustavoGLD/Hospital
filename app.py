@@ -714,15 +714,7 @@ class Algorithm:
             last_next_vacany = self.next_vacany
             self.next_vacany_room, self.next_vacany = self.get_next_vacany()
 
-            if additional_tests and last_next_vacany < self.next_vacany:
-                for room in self.cache.get_table(Room):
-                    if not self.cache.is_room_busy(room.id, self.next_vacany):
-                        for surg in self.surgeries:
-                            for pss_sch in self.cache.get_by_attribute(SurgeryPossibleTeams, "surgery_id", surg.id):
-                                if pss_sch.team_id in [team.id for team in available_teams]:
-                                    logger.warning(f"there is a surgery that can be scheduled in room {room.name} "
-                                                   f"at {self.next_vacany} but it's not being scheduled.")
-                                    logger.warning(f"{surg=}, {pss_sch=}, {available_teams=}")
+            self.check_non_uses(available_teams, last_next_vacany)
 
         # montar um dataframe de todos os agendamentos em função do tempo
         schedules_dict = []
@@ -748,6 +740,17 @@ class Algorithm:
         if LogConfig.algorithm_details:
             logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
         return df
+
+    def check_non_uses(self, available_teams, last_next_vacany):
+        if additional_tests and last_next_vacany < self.next_vacany:
+            for room in self.cache.get_table(Room):
+                if not self.cache.is_room_busy(room.id, last_next_vacany):
+                    for surg in self.surgeries:
+                        for pss_sch in self.cache.get_by_attribute(SurgeryPossibleTeams, "surgery_id", surg.id):
+                            if pss_sch.team_id in [team.id for team in available_teams]:
+                                logger.warning(f"there is a surgery that can be scheduled in room {room.name} "
+                                               f"at {last_next_vacany} but it's not being scheduled.")
+                                logger.warning(f"{surg=}, {pss_sch=}, {available_teams=}")
 
     @staticmethod
     def how_close_schedule(sch: Schedule, ntime: datetime) -> timedelta:

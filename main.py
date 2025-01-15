@@ -1,18 +1,24 @@
 import os
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from copy import deepcopy, copy
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional, List, TypeVar, Type, Sequence, Tuple, Union, Dict, Any
-from unittest.mock import MagicMock
 
 import pandas as pd
 import pygad  # type: ignore
 from loguru import logger
-from pydantic import computed_field
-from sqlmodel import Field, SQLModel, Relationship
+from sqlmodel import SQLModel
 from tabulate import tabulate
 
+from app.config import DefaultConfig, LogConfig, additional_tests
+from app.models.empty_schedule import EmptySchedule
+from app.models.patient import Patient
+from app.models.professional import Professional
+from app.models.room import Room
+from app.models.schedule import Schedule
+from app.models.surgery import Surgery
+from app.models.surgery_possible_teams import SurgeryPossibleTeams
+from app.models.team import Team
 from moonlogger import MoonLogger
 from dotenv import load_dotenv
 
@@ -21,32 +27,11 @@ load_dotenv()
 T = TypeVar("T")
 M = TypeVar("M", bound=SQLModel)
 
-logger.add("app.log", rotation="10 MB", retention="10 days", level="DEBUG")
-
 
 def setup_test_session():
     engine = create_engine("sqlite:///:memory:")  # Banco de dados em memória
     SQLModel.metadata.create_all(engine)  # Cria as tabelas
     return Session(engine)
-
-
-class DefaultConfig:
-    num_generations = 25
-    sol_per_pop = 50
-    num_parents_mating = 9
-    mutation_percent_genes = [5, 4]
-    keep_parents = -1
-    crossover_type = "single_point"
-    mutation_type = "random"
-    parent_selection_type = "sss"
-
-
-class LogConfig:
-    algorithm_details: bool = False
-    optimizer_details: bool = True
-
-
-additional_tests = True
 
 
 def additional_test(func):
@@ -56,80 +41,6 @@ def additional_test(func):
         return None
 
     return wrapper
-
-
-class Team(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str
-
-    professionals: List["Professional"] = Relationship(back_populates="team")
-    possible_surgeries: List["SurgeryPossibleTeams"] = Relationship(back_populates="team")
-    schedules: List["Schedule"] = Relationship(back_populates="team")
-
-
-class Professional(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str
-    team_id: Optional[int] = Field(default=None, foreign_key="team.id")
-
-    team: Optional[Team] = Relationship(back_populates="professionals")
-
-
-class Room(SQLModel, table=True):
-    id: int = Field(default=None, primary_key=True, index=True)
-    name: str
-
-    schedules: List["Schedule"] = Relationship(back_populates="room")
-
-
-class Patient(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str
-
-
-class Surgery(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str
-    duration: int
-    priority: int
-    patient_id: Optional[int] = Field(default=None, foreign_key="patient.id")
-
-    patient: Optional[Patient] = Relationship()
-    schedule: Optional["Schedule"] = Relationship(back_populates="surgery")
-    possible_teams: List["SurgeryPossibleTeams"] = Relationship(back_populates="surgery")
-
-
-class Schedule(SQLModel, table=True):
-    start_time: datetime
-    fixed: bool = Field(default=False)
-
-    surgery_id: int = Field(foreign_key="surgery.id", primary_key=True)
-    room_id: int = Field(foreign_key="room.id")
-    team_id: int = Field(foreign_key="team.id")
-
-    surgery: Surgery = Relationship(back_populates="schedule")
-    room: Room = Relationship(back_populates="schedules")
-    team: Team = Relationship(back_populates="schedules")
-
-
-class EmptySchedule(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    room_id: int = Field(foreign_key="room.id")
-    start_time: datetime
-    duration: int
-
-    @computed_field
-    def end_time(self) -> datetime:
-        return self.start_time + timedelta(minutes=self.duration)
-
-
-class SurgeryPossibleTeams(SQLModel, table=True):
-    __tablename__ = "surgery_possible_teams"
-    surgery_id: int = Field(foreign_key="surgery.id", primary_key=True)
-    team_id: int = Field(foreign_key="team.id", primary_key=True)
-
-    surgery: Surgery = Relationship(back_populates="possible_teams")
-    team: Team = Relationship(back_populates="possible_surgeries")
 
 
 from datetime import datetime
@@ -928,7 +839,7 @@ class FixedSchedules(Algorithm):
                             if schedule in self.fixed_schedules_disregarded:
                                 self.fixed_schedules_disregarded.remove(schedule)
                         self.empty_schedules_considered.append(empty_schedule)
-                        logger.success(f"Empty schedule created at {self.next_vacany}. {EmptySchedule=}")
+                        logger.success(f"Empty schedule created at {self.next_vacany}. { EmptySchedule=}")
                         logger.success(f"New considered schedule: {empty_schedule}")
             else:
                 interval = schedule.start_time - self.next_vacany
@@ -944,7 +855,7 @@ class FixedSchedules(Algorithm):
                         if schedule in self.fixed_schedules_disregarded:
                             self.fixed_schedules_disregarded.remove(schedule)
                     self.empty_schedules_considered.append(empty_schedule)
-                    logger.success(f"Empty schedule created at {self.next_vacany}. {EmptySchedule=}")
+                    logger.success(f"Empty schedule created at {self.next_vacany}. { EmptySchedule=}")
                     logger.success(f"New considered schedule: {empty_schedule}")
 
         elif surgery:

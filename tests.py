@@ -12,8 +12,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 from tabulate import tabulate
 
-from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
-    Professional, Solver, FixedSchedules
+from main import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, SurgeryPossibleTeams, \
+    Solver, FixedSchedules
+from app.models.professional import Professional
+from app.models.team import Team
 from moonlogger import MoonLogger
 
 

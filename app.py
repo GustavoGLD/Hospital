@@ -49,6 +49,15 @@ class LogConfig:
 additional_tests = True
 
 
+def additional_test(func):
+    def wrapper(*args, **kwargs):
+        if additional_tests:
+            return func(*args, **kwargs)
+        return None
+
+    return wrapper
+
+
 class Team(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
     name: str
@@ -436,13 +445,8 @@ class CacheInDict(CacheManager):
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def register_surgery(self, surgery: Surgery, team: Team, room: Room, start_time: datetime):
         """Registra uma cirurgia no cache e atualiza os índices."""
-        if additional_tests:
-            if self.get_by_attribute(Schedule, "surgery_id", surgery.id):
-                logger.error(f"this surgery is already scheduled: {surgery.name}")
-                logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
-                quit()
-
-            self.check_superposition(room, start_time, surgery)
+        self.check_preexistence_sch(surgery)
+        self.check_superposition(room, start_time, surgery)
 
         if LogConfig.algorithm_details:
             logger.success(
@@ -479,6 +483,14 @@ class CacheInDict(CacheManager):
                 self.indexes[tablename][attribute][attr_value] = []
             self.indexes[tablename][attribute][attr_value].append(new_schedule)
 
+    @additional_test
+    def check_preexistence_sch(self, surgery):
+        if self.get_by_attribute(Schedule, "surgery_id", surgery.id):
+            logger.error(f"this surgery is already scheduled: {surgery.name}")
+            logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
+            quit()
+
+    @additional_test
     def check_superposition(self, room, start_time, surgery):
         # verificar se sobrepõe com outra cirurgia
         for schedule in self.get_table(Schedule):
@@ -706,15 +718,10 @@ class Algorithm:
                 if LogConfig.algorithm_details:
                     self.print_table()
 
-            if additional_tests:
-                schs = self.cache.get_by_attribute(Schedule, "room_id", self.next_vacany_room.id)
-                if not any([sch.start_time == self.next_vacany for sch in schs]):
-                    logger.error(f"the schedule wasn't created in '{self.next_vacany_room.name}' at {self.next_vacany}")
-
+            self.check_non_creation_sch()
             last_next_vacany = self.next_vacany
             self.next_vacany_room, self.next_vacany = self.get_next_vacany()
-
-            self.check_non_uses(available_teams, last_next_vacany)
+            self.check_non_use_of_time(available_teams, last_next_vacany)
 
         # montar um dataframe de todos os agendamentos em função do tempo
         schedules_dict = []
@@ -729,20 +736,30 @@ class Algorithm:
                 **self.cache.get_dict_surgeries_by_time(emptysch.start_time)
             }])
 
-        if additional_tests:
-            surgs_scheduled = [sch.surgery_id for sch in self.cache.get_table(Schedule)]
-            for surg in self.cache.get_table(Surgery):
-                if surg.id not in surgs_scheduled:
-                    logger.error(f"this surgery wasn't scheduled: {surg=}")
-                    quit()
+        self.check_remaining_surgeries()
 
         df = pd.DataFrame([item for sublist in schedules_dict for item in sublist])
         if LogConfig.algorithm_details:
             logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
         return df
 
-    def check_non_uses(self, available_teams, last_next_vacany):
-        if additional_tests and last_next_vacany < self.next_vacany:
+    @additional_test
+    def check_remaining_surgeries(self):
+        surgs_scheduled = [sch.surgery_id for sch in self.cache.get_table(Schedule)]
+        for surg in self.cache.get_table(Surgery):
+            if surg.id not in surgs_scheduled:
+                logger.error(f"this surgery wasn't scheduled: {surg=}")
+                quit()
+
+    @additional_test
+    def check_non_creation_sch(self):
+        schs = self.cache.get_by_attribute(Schedule, "room_id", self.next_vacany_room.id)
+        if not any([sch.start_time == self.next_vacany for sch in schs]):
+            logger.error(f"the schedule wasn't created in '{self.next_vacany_room.name}' at {self.next_vacany}")
+
+    @additional_test
+    def check_non_use_of_time(self, available_teams, last_next_vacany):
+        if last_next_vacany < self.next_vacany:
             for room in self.cache.get_table(Room):
                 if not self.cache.is_room_busy(room.id, last_next_vacany):
                     for surg in self.surgeries:

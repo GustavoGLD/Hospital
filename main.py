@@ -515,6 +515,7 @@ class Algorithm:
     def get_next_vacancies(self, zero_time: datetime, fixed_schedules_considered: list[Schedule],
                            empty_schedules_considered: list[EmptySchedule]) -> List[Tuple[Room, datetime]]:
         """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
+        self._validate_cache()
         vacancies = []
         schedules: list[Schedule | EmptySchedule] = self.cache.get_table(Schedule)
         rooms = self.cache.get_table(Room)
@@ -580,16 +581,19 @@ class Algorithm:
 
         self._validate_cache()  # Validações iniciais
         value = self._get_sorted_vacancies()[0]
+        self._check_duplicate_vacancy(value, last_value)
 
+        return value
+
+    def _check_duplicate_vacancy(self, value, last_value):
+        """Verifica se a próxima vaga é igual à última registrada."""
         if value == last_value[0]:
-            logger.error(f"The next vacancy is the same as the last one")
+            logger.error("The next vacancy is the same as the last one")
             logger.error(f"{last_value[0]=}")
             logger.error(f"{value=}")
             quit()
         else:
             last_value[0] = value
-
-        return value
 
     def _validate_cache(self):
         """Valida se o cache possui as tabelas necessárias."""

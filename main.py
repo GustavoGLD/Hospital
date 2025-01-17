@@ -579,7 +579,6 @@ class Algorithm:
     def get_next_vacany(self) -> Tuple[Room, datetime]:
         """Retorna a próxima vaga disponível."""
 
-        self._validate_cache()  # Validações iniciais
         value = self._get_sorted_vacancies()[0]
         self._check_duplicate_vacancy([value])
 

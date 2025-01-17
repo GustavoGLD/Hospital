@@ -576,24 +576,24 @@ class Algorithm:
         logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_vacany(self, last_value=[None]) -> Tuple[Room, datetime]:
+    def get_next_vacany(self) -> Tuple[Room, datetime]:
         """Retorna a próxima vaga disponível."""
 
         self._validate_cache()  # Validações iniciais
         value = self._get_sorted_vacancies()[0]
-        self._check_duplicate_vacancy(value, last_value)
+        self._check_duplicate_vacancy([value])
 
         return value
 
-    def _check_duplicate_vacancy(self, value, last_value):
+    def _check_duplicate_vacancy(self, value, last_value=[None]):
         """Verifica se a próxima vaga é igual à última registrada."""
-        if value == last_value[0]:
+        if value[0] == last_value[0]:
             logger.error("The next vacancy is the same as the last one")
             logger.error(f"{last_value[0]=}")
-            logger.error(f"{value=}")
+            logger.error(f"{value[0]=}")
             quit()
         else:
-            last_value[0] = value
+            last_value[0] = value[0]
 
     def _validate_cache(self):
         """Valida se o cache possui as tabelas necessárias."""

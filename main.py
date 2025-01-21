@@ -34,6 +34,17 @@ def setup_test_session():
     return Session(engine)
 
 
+# Dinâmica de combinação
+def apply_features(base_class, *features) -> Type["Algorithm"]:
+    # Cria uma nova classe combinada
+    combined_class = type(
+        "CombinedAlgorithm",
+        (*features, base_class),
+        {}  # Nenhum atributo adicional no momento
+    )
+    return combined_class  # type: ignore
+
+
 def additional_test(func):
     def wrapper(*args, **kwargs):
         if additional_tests:
@@ -779,8 +790,8 @@ class Algorithm:
         quit()
 
 
-class FixedSchedules(Algorithm):
-    def get_next_schedule(self, room_id: int, check_time: datetime) -> Optional[Schedule | EmptySchedule]:
+class FixedSchedules:
+    def get_next_schedule(self: Algorithm, room_id: int, check_time: datetime) -> Optional[Schedule | EmptySchedule]:
         schedules: list[Schedule | EmptySchedule] = []
         schedules.extend(self.cache.get_by_attribute(Schedule, "room_id", room_id))
         schedules.extend(self.cache.get_by_attribute(EmptySchedule, "room_id", room_id))
@@ -802,7 +813,7 @@ class FixedSchedules(Algorithm):
             return n
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def _process_room_with_teams(self, room: Room, solution: List[int], available_teams: List[Team]):
+    def _process_room_with_teams(self: Algorithm, room: Room, solution: List[int], available_teams: List[Team]):
         try:
             team_n = solution[self.step]
         except IndexError as e:
@@ -868,7 +879,7 @@ class FixedSchedules(Algorithm):
                 self._try_global_teams(room)
 
         @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-        def get_next_vacancies(self, zero_time: datetime, fixed_schedules_considered: list[Schedule],
+        def get_next_vacancies(self: Algorithm, zero_time: datetime, fixed_schedules_considered: list[Schedule],
                                empty_schedules_considered: list[EmptySchedule]) -> List[Tuple[Room, datetime]]:
             """Retorna um dicionário com as próximas vagas disponíveis em cada sala."""
             vacancies = []
@@ -926,7 +937,7 @@ class FixedSchedules(Algorithm):
             return vacancies
 
         @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-        def _try_other_teams(self, room: Room, available_teams: List[Team], interval=timedelta()) -> bool:
+        def _try_other_teams(self: Algorithm, room: Room, available_teams: List[Team], interval=timedelta()) -> bool:
             for team in available_teams:
                 surgery = self.cache.get_next_surgery(self.surgeries, team)
                 if surgery:

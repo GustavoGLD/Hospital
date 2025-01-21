@@ -4,6 +4,7 @@ import unittest
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
+from typing import Type
 from unittest.mock import MagicMock
 
 from loguru import logger
@@ -13,7 +14,7 @@ from sqlmodel import SQLModel, Session
 from tabulate import tabulate
 
 from main import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, SurgeryPossibleTeams, \
-    Solver, FixedSchedules
+    Solver, FixedSchedules, apply_features
 from app.models.professional import Professional
 from app.models.team import Team
 from moonlogger import MoonLogger
@@ -622,7 +623,8 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         # Criar uma instância do algoritmo
         self.solver = Solver(self.cache)
         logger.info(f"Carregando dados no Solver")
-        self.algorithm = FixedSchedules(self.solver.mobile_surgeries, self.cache, now)
+        scheduler = apply_features(Algorithm, FixedSchedules)
+        self.algorithm = scheduler(self.solver.mobile_surgeries, self.cache, now)
         self.algorithm.step = 0
 
     def generate_schedules(self, now: datetime):

@@ -127,46 +127,6 @@ class CacheManager(ABC):
         return available_rooms
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
-    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
-        """Retorna a próxima cirurgia a ser realizada por uma equipe específica."""
-        possibles = self.get_by_attribute(SurgeryPossibleTeams, "team_id", team.id)
-
-        if not possibles:
-            logger.error(f"this team didn't have any corresponding surgery "
-                         f"{team.name} (ID={team.id}): ")
-            # f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
-            return None
-
-        for surgery in surgeries:
-            if surgery.id in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]:
-                logger.error(f"this surgery is already scheduled: {surgery.name}\n{surgery=}")
-                logger.error(f"{[sch for sch in self.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
-                quit()
-
-            if sch := self.get_by_attribute(Schedule, "surgery_id", surgery.id):
-                if sch[0].fixed:
-                    logger.error(f"we can't schedule this surgery: {surgery.name} because it's fixed")
-                    logger.error(f"{sch[0]=}")
-                    quit()
-
-        psb_cgrs = []
-        for schedule in possibles:
-            # logger.debug(f"{schedule.team_id == team.id=}")
-            # logger.debug(f"{schedule.surgery_id in [surgery.id for surgery in surgeries]=}")
-            # logger.debug(f"{schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]=}")
-            if schedule.team_id == team.id and schedule.surgery_id in [surgery.id for surgery in surgeries]:
-                if schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]:
-                    psb_cgrs.append(self.get_by_id(Surgery, schedule.surgery_id))
-
-        if not psb_cgrs:
-            if LogConfig.algorithm_details:
-                logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
-            return None
-
-        surgeries = list(sorted(psb_cgrs, key=lambda x: x.duration / (x.priority or 1)))
-        return surgeries[0]
-
-    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_surgery_by_time_and_room(self, time: datetime, room: Room) \
             -> Union[tuple[Surgery, Schedule], tuple[None, None], tuple[None, EmptySchedule]]:
         """Retorna a cirurgia agendada para um horário e sala específicos."""
@@ -564,6 +524,46 @@ class Algorithm:
         return vacancies
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
+    def get_next_surgery(self, surgeries: List[Surgery], team: Team) -> Union[Surgery, SQLModel, None]:
+        """Retorna a próxima cirurgia a ser realizada por uma equipe específica."""
+        possibles = self.cache.get_by_attribute(SurgeryPossibleTeams, "team_id", team.id)
+
+        if not possibles:
+            logger.error(f"this team didn't have any corresponding surgery "
+                         f"{team.name} (ID={team.id}): ")
+            # f"{self.data.get(SurgeryPossibleTeams.__tablename__)}")
+            return None
+
+        for surgery in surgeries:
+            if surgery.id in [sch.surgery_id for sch in self.cache.get_table(Schedule) if not sch.fixed]:
+                logger.error(f"this surgery is already scheduled: {surgery.name}\n{surgery=}")
+                logger.error(f"{[sch for sch in self.cache.get_table(Schedule) if sch.surgery_id == surgery.id]=}")
+                quit()
+
+            if sch := self.cache.get_by_attribute(Schedule, "surgery_id", surgery.id):
+                if sch[0].fixed:
+                    logger.error(f"we can't schedule this surgery: {surgery.name} because it's fixed")
+                    logger.error(f"{sch[0]=}")
+                    quit()
+
+        psb_cgrs = []
+        for schedule in possibles:
+            # logger.debug(f"{schedule.team_id == team.id=}")
+            # logger.debug(f"{schedule.surgery_id in [surgery.id for surgery in surgeries]=}")
+            # logger.debug(f"{schedule.surgery_id not in [sch.surgery_id for sch in self.get_table(Schedule) if not sch.fixed]=}")
+            if schedule.team_id == team.id and schedule.surgery_id in [surgery.id for surgery in surgeries]:
+                if schedule.surgery_id not in [sch.surgery_id for sch in self.cache.get_table(Schedule) if not sch.fixed]:
+                    psb_cgrs.append(self.cache.get_by_id(Surgery, schedule.surgery_id))
+
+        if not psb_cgrs:
+            if LogConfig.algorithm_details:
+                logger.error(f"no surgery found for team {team.name} (ID={team.id}) at this time")
+            return None
+
+        surgeries = list(sorted(psb_cgrs, key=lambda x: x.duration / (x.priority or 1)))
+        return surgeries[0]
+
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def get_next_schedule(self, room_id: int, check_time: datetime) -> Optional[Schedule | EmptySchedule]:
         schedules: list[Schedule | EmptySchedule] = []
         schedules.extend(self.cache.get_by_attribute(Schedule, "room_id", room_id))
@@ -728,7 +728,7 @@ class Algorithm:
                          f"{team_n=}, {len(available_teams)=}, {available_teams=}, {solution=}")
             raise e
 
-        surgery = self.cache.get_next_surgery(self.surgeries, team)
+        surgery = self.get_next_surgery(self.surgeries, team)
 
         if surgery:
             self._register_surgery_and_update(surgery, team, room, self.next_vacany)
@@ -745,7 +745,7 @@ class Algorithm:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _try_other_teams(self, room: Room, available_teams: List[Team]) -> bool:
         for team in available_teams:
-            surgery = self.cache.get_next_surgery(self.surgeries, team)
+            surgery = self.get_next_surgery(self.surgeries, team)
             if surgery:
                 self._register_surgery_and_update(surgery, team, room, self.next_vacany)
                 return True
@@ -766,7 +766,7 @@ class Algorithm:
             return max(schedules, key=lambda x: x[0].start_time + timedelta(minutes=x[1]))
 
         for team in self.cache.get_table(Team):
-            surgery = self.cache.get_next_surgery(self.surgeries, team)
+            surgery = self.get_next_surgery(self.surgeries, team)
             if surgery:
                 schedules = self.cache.get_by_attribute(Schedule, "team_id", team.id)
 
@@ -784,6 +784,9 @@ class Algorithm:
                 # _room = self.cache.get_by_id(Room, last_team_schedule.room_id)
                 # self._register_surgery_and_update(surgery, team, _room, start_time)
 
+        self.if_no_teams_for_room()
+
+    def if_no_teams_for_room(self):
         logger.error(
             f"No surgery found for any team.\n{self.surgeries=}\n{self.cache.get_table(SurgeryPossibleTeams)=}")
         # raise ValueError("No surgery found for any team.")
@@ -830,7 +833,7 @@ class FixedSchedules:
                          f"{team_n=}, {len(available_teams)=}, {available_teams=}, {solution=}")
             raise e
 
-        surgery = self.cache.get_next_surgery(self.surgeries, team)
+        surgery = self.get_next_surgery(self.surgeries, team)
 
         if any([sc.start_time > self.next_vacany for sc in self.cache.get_by_attribute(Schedule, "room_id", room.id)]):
             schedule = self.get_next_schedule(room.id, self.next_vacany)
@@ -939,7 +942,7 @@ class FixedSchedules:
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def _try_other_teams(self: Algorithm, room: Room, available_teams: List[Team], interval=timedelta()) -> bool:
         for team in available_teams:
-            surgery = self.cache.get_next_surgery(self.surgeries, team)
+            surgery = self.get_next_surgery(self.surgeries, team)
             if surgery:
                 if next_sch := self.get_next_schedule(room.id, self.next_vacany):
                     interval = next_sch.start_time - self.next_vacany

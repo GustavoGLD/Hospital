@@ -756,64 +756,105 @@ class TestFixedSchedulesExecute(unittest.TestCase):
             for sch in schdls[key]:
                 logger.info(f"Sala {key} Cirurgia {sch[0].surgery_id}: {sch[0].start_time} -> {sch[1]}")
 
+import itertools
+from math import comb
+
+
+class TestRoomLimiter2(unittest.TestCase):
+    def setUp(self):
+        self.session = setup_test_session()
+
+        n_teams = 7
+        n_rooms = 4
+        n_surgeries = comb(7, 2)
+
+        self.teams = [Team(id=i, name=f"Equipe {i}") for i in range(1, n_teams+1)]
+        self.rooms = [Room(id=i, name=f"Sala {i}") for i in range(1, n_rooms+1)]
+        self.surgeries = [Surgery(id=i, name=f"Cirurgia {i}", duration=(i % 3 + 1) * 60, patient_id=(i % 5) + 1, priority=(i % 3) + 1) for i in range(1, n_surgeries+1)]
+
+        self.surgery_possible_rooms = []
+        self.surgery_possible_teams = []
+        for i, pair_teams in enumerate(itertools.combinations(self.teams, 2)):
+            pair_rooms = random.sample(self.rooms, 2)
+
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[0].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[1].id))
+
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[0].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[1].id))
+
+
+    def test_room_limiter_execution(self):
+        print(self.teams)
+        print(self.rooms)
+        print(self.surgeries)
+        print(self.surgery_possible_rooms)
+        print(self.surgery_possible_teams)
+
+        for surgery_possible_room in self.surgery_possible_rooms:
+            print(surgery_possible_room)
+
+        for surgery_possible_team in self.surgery_possible_teams:
+            print(surgery_possible_team)
+
 
 class TestRoomLimiter(unittest.TestCase):
     def setUp(self):
-        """Configura o ambiente de teste com dados relacionados a cirurgias, salas, equipes e associações."""
         self.session = setup_test_session()
 
-        # Criar e adicionar equipes na sessão
-        self.teams = [
-            Team(id=i, name=f"Equipe {i}") for i in range(1, 6)  # 5 equipes
-        ]
+        self.n_teams = 7
+        self.n_rooms = 4
+        self.n_surgeries = comb(7, 2)
+
+        self.teams = [Team(id=i, name=f"Equipe {i}") for i in range(1, self.n_teams+1)]
+        self.rooms = [Room(id=i, name=f"Sala {i}") for i in range(1, self.n_rooms+1)]
+        self.surgeries = [Surgery(id=i, name=f"Cirurgia {i}", duration=(i % 3 + 1) * 60, patient_id=(i % 5) + 1, priority=(i % 3) + 1) for i in range(1, self.n_surgeries+1)]
+
+        self.surgery_possible_rooms = []
+        self.surgery_possible_teams = []
+        for i, pair_teams in enumerate(itertools.combinations(self.teams, 2)):
+            pair_rooms = random.sample(self.rooms, 2)
+
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[0].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[1].id))
+
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[0].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[1].id))
+
         self.session.add_all(self.teams)
-
-        # Criar e adicionar salas na sessão
-        self.rooms = [
-            Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
-        ]
         self.session.add_all(self.rooms)
-
-        # Criar e adicionar cirurgias na sessão
-        self.surgeries = [
-            Surgery(id=i, name=f"Cirurgia {i}", duration=(i + 1) * 30, patient_id=(i % 20) + 1, priority=i % 5 + 1)
-            for i in range(1, 21)  # 20 cirurgias
-        ]
         self.session.add_all(self.surgeries)
+        self.session.add_all(self.surgery_possible_rooms)
+        self.session.add_all(self.surgery_possible_teams)
 
-        # Criar possíveis salas para as cirurgias
-        surgery_possible_rooms = [
-            SurgeryPossibleRooms(surgery_id=i, room_id=(i % 5) + 1) for i in range(1, 21)
-        ]
-        self.session.add_all(surgery_possible_rooms)
-
-        # Criar possíveis equipes para as cirurgias
-        surgery_possible_teams = [
-            SurgeryPossibleTeams(surgery_id=i, team_id=(i % 5) + 1) for i in range(1, 21)
-        ]
-        self.session.add_all(surgery_possible_teams)
-
-        # Commit para salvar todos os dados na sessão
+        # Commit para salvar todos os dados no banco
         self.session.commit()
 
-        # Inicializar cache e carregar dados
+        # Inicializar o cache
         self.cache = CacheInDict(session=self.session)
         self.cache.load_all_data(self.session)
 
-        # Criar uma instância do RoomLimiter
         now = datetime.now()
         scheduler = apply_features(Algorithm, RoomLimiter)
         self.room_limiter = scheduler(self.surgeries, self.cache, now)
 
     def test_room_limiter_execution(self):
-        """Teste básico para verificar se o RoomLimiter funciona com os dados configurados."""
+        """Testa se o RoomLimiter executa com sucesso e gera agendamentos válidos."""
         try:
-            self.room_limiter.execute([0] * 20)
-            schedules = self.room_limiter.cache.get_table(Schedule)
+            self.room_limiter.execute([1]*self.n_surgeries)
+            schedules = self.cache.get_table(Schedule)
+
+            # Validar que algumas cirurgias foram agendadas
             self.assertGreater(len(schedules), 0, "Nenhuma cirurgia foi agendada.")
+
+            # Validar que cada cirurgia foi associada a uma sala e equipe válidas
+            for schedule in schedules:
+                self.assertIn(schedule.surgery_id, [s.id for s in self.surgeries])
+                self.assertIn(schedule.room_id, [r.id for r in self.rooms])
+                self.assertIn(schedule.team_id, [t.id for t in self.teams])
+
         except Exception as e:
             self.fail(f"RoomLimiter execution falhou com erro: {e}")
-
 
     def test_execute_with_room_constraints(self):
         """Teste para verificar se o RoomLimiter respeita as restrições de sala."""

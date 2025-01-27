@@ -815,11 +815,11 @@ class TestRoomLimiter(unittest.TestCase):
         for i, pair_teams in enumerate(itertools.combinations(self.teams, 2)):
             pair_rooms = random.sample(self.rooms, 2)
 
-            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[0].id))
-            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[1].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[0].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[1].id))
 
-            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[0].id))
-            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[1].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[0].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[1].id))
 
         self.session.add_all(self.teams)
         self.session.add_all(self.rooms)
@@ -838,11 +838,17 @@ class TestRoomLimiter(unittest.TestCase):
         scheduler = apply_features(Algorithm, RoomLimiter)
         self.room_limiter = scheduler(self.surgeries, self.cache, now)
 
+        logger.info(f"{self.teams=}")
+        logger.info(f"{self.rooms=}")
+        logger.info(f"{self.surgeries=}")
+        logger.info(f"{self.surgery_possible_rooms=}")
+        logger.info(f"{self.surgery_possible_teams=}")
+
     def test_room_limiter_execution(self):
         """Testa se o RoomLimiter executa com sucesso e gera agendamentos válidos."""
         try:
             self.room_limiter.execute([1]*self.n_surgeries)
-            schedules = self.cache.get_table(Schedule)
+            schedules = self.room_limiter.cache.get_table(Schedule)
 
             # Validar que algumas cirurgias foram agendadas
             self.assertGreater(len(schedules), 0, "Nenhuma cirurgia foi agendada.")

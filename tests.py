@@ -8,12 +8,20 @@ from unittest.mock import MagicMock
 
 from loguru import logger
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 from tabulate import tabulate
 
-from app import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, Team, SurgeryPossibleTeams, \
-    Professional, Solver, FixedSchedules
+from app.models import SurgeryPossibleRooms
+from app.models import Room, Surgery, Patient, SurgeryPossibleTeams, Schedule
+from app.services.logic.schedule_builders.functions.apply_features import apply_features
+from app.services.logic.schedule_optimizers.optimizer import Optimizer
+from app.services.logic.schedule_builders.features.room_limiter import RoomLimiter
+from app.services.logic.schedule_builders.features.fixed_schedules import FixedSchedules
+from app.services.logic.schedule_builders.algorithm import Algorithm
+from app.services.logic.schedule_optimizers.solver import Solver
+from app.services.cache.cache_in_dict import CacheInDict
+from app.models.professional import Professional
+from app.models.team import Team
 from moonlogger import MoonLogger
 
 
@@ -620,7 +628,8 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         # Criar uma instância do algoritmo
         self.solver = Solver(self.cache)
         logger.info(f"Carregando dados no Solver")
-        self.algorithm = FixedSchedules(self.solver.mobile_surgeries, self.cache, now)
+        scheduler = apply_features(Algorithm, FixedSchedules)
+        self.algorithm = scheduler(self.solver.mobile_surgeries, self.cache, now)
         self.algorithm.step = 0
 
     def generate_schedules(self, now: datetime):
@@ -750,6 +759,147 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         for key in schdls.keys():
             for sch in schdls[key]:
                 logger.info(f"Sala {key} Cirurgia {sch[0].surgery_id}: {sch[0].start_time} -> {sch[1]}")
+
+import itertools
+from math import comb
+
+
+class TestRoomLimiter2(unittest.TestCase):
+    def setUp(self):
+        self.session = setup_test_session()
+
+        n_teams = 7
+        n_rooms = 4
+        n_surgeries = comb(7, 2)
+
+        self.teams = [Team(id=i, name=f"Equipe {i}") for i in range(1, n_teams+1)]
+        self.rooms = [Room(id=i, name=f"Sala {i}") for i in range(1, n_rooms+1)]
+        self.surgeries = [Surgery(id=i, name=f"Cirurgia {i}", duration=(i % 3 + 1) * 60, patient_id=(i % 5) + 1, priority=(i % 3) + 1) for i in range(1, n_surgeries+1)]
+
+        self.surgery_possible_rooms = []
+        self.surgery_possible_teams = []
+        for i, pair_teams in enumerate(itertools.combinations(self.teams, 2)):
+            pair_rooms = random.sample(self.rooms, 2)
+
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[0].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i, team_id=pair_teams[1].id))
+
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[0].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i, room_id=pair_rooms[1].id))
+
+
+    def test_room_limiter_execution(self):
+        print(self.teams)
+        print(self.rooms)
+        print(self.surgeries)
+        print(self.surgery_possible_rooms)
+        print(self.surgery_possible_teams)
+
+        for surgery_possible_room in self.surgery_possible_rooms:
+            print(surgery_possible_room)
+
+        for surgery_possible_team in self.surgery_possible_teams:
+            print(surgery_possible_team)
+
+
+class TestRoomLimiter(unittest.TestCase):
+    def setUp(self):
+        self.session = setup_test_session()
+
+        self.n_teams = 7
+        self.n_rooms = 4
+        self.n_surgeries = comb(7, 2)
+
+        self.teams = [Team(id=i, name=f"Equipe {i}") for i in range(1, self.n_teams+1)]
+        self.rooms = [Room(id=i, name=f"Sala {i}") for i in range(1, self.n_rooms+1)]
+        self.surgeries = [Surgery(id=i, name=f"Cirurgia {i}", duration=(i % 3 + 1) * 60, patient_id=(i % 5) + 1, priority=(i % 3) + 1) for i in range(1, self.n_surgeries+1)]
+
+        self.surgery_possible_rooms = []
+        self.surgery_possible_teams = []
+        for i, pair_teams in enumerate(itertools.combinations(self.teams, 2)):
+            pair_rooms = random.sample(self.rooms, 2)
+
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[0].id))
+            self.surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[1].id))
+
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[0].id))
+            self.surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[1].id))
+
+        self.session.add_all(self.teams)
+        self.session.add_all(self.rooms)
+        self.session.add_all(self.surgeries)
+        self.session.add_all(self.surgery_possible_rooms)
+        self.session.add_all(self.surgery_possible_teams)
+
+        # Commit para salvar todos os dados no banco
+        self.session.commit()
+
+        # Inicializar o cache
+        self.cache = CacheInDict(session=self.session)
+        self.cache.load_all_data(self.session)
+
+        now = datetime.now()
+        scheduler = apply_features(Algorithm, RoomLimiter)
+        self.room_limiter = scheduler(self.surgeries, self.cache, now)
+
+        logger.info(f"{self.teams=}")
+        logger.info(f"{self.rooms=}")
+        logger.info(f"{self.surgeries=}")
+        logger.info(f"{self.surgery_possible_rooms=}")
+        logger.info(f"{self.surgery_possible_teams=}")
+
+    def test_room_limiter_execution(self):
+        """Testa se o RoomLimiter executa com sucesso e gera agendamentos válidos."""
+        try:
+            self.room_limiter.execute([1]*self.n_surgeries)
+            schedules = self.room_limiter.cache.get_table(Schedule)
+
+            # Validar que algumas cirurgias foram agendadas
+            self.assertGreater(len(schedules), 0, "Nenhuma cirurgia foi agendada.")
+
+            # Validar que cada cirurgia foi associada a uma sala e equipe válidas
+            for schedule in schedules:
+                self.assertIn(schedule.surgery_id, [s.id for s in self.surgeries])
+                self.assertIn(schedule.room_id, [r.id for r in self.rooms])
+                self.assertIn(schedule.team_id, [t.id for t in self.teams])
+
+        except Exception as e:
+            self.fail(f"RoomLimiter execution falhou com erro: {e}")
+
+    def test_execute_with_room_constraints(self):
+        """Teste para verificar se o RoomLimiter respeita as restrições de sala."""
+        # Definindo uma solução válida que mapeia as cirurgias para as salas disponíveis
+        solution = [1 for _ in range(len(self.surgeries))]  # Todas as cirurgias tentam usar a primeira sala
+
+        # Executa a lógica do RoomLimiter
+        df = self.room_limiter.execute(solution)
+        print("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
+
+        # Recupera os agendamentos
+        schedules = self.room_limiter.cache.get_table(Schedule)
+
+        # Verifica que todas as cirurgias foram agendadas dentro das restrições de sala
+        self.assertEqual(len(schedules), 20)  # Todas as 20 cirurgias devem estar agendadas
+
+        for schedule in schedules:
+            surgery_id = schedule.surgery_id
+            room_id = schedule.room_id
+
+            # Verifica se a sala usada está na lista de possíveis salas para esta cirurgia
+            possible_rooms = {
+                sp.room_id for sp in self.session.query(SurgeryPossibleRooms).filter(SurgeryPossibleRooms.surgery_id == surgery_id)
+            }
+            self.assertIn(room_id, possible_rooms, f"Cirurgia {surgery_id} foi agendada em uma sala não permitida.")
+
+    def test_no_possible_rooms(self):
+        """Teste para verificar comportamento quando não há salas disponíveis."""
+        # Simular cenário sem salas disponíveis para a cirurgia 1
+        self.session.query(SurgeryPossibleRooms).filter(SurgeryPossibleRooms.surgery_id == 1).delete()
+        self.session.commit()
+
+        solution = [1 for _ in range(len(self.surgeries))]
+        with self.assertRaises(ValueError, msg="Deveria lançar exceção se uma cirurgia não puder ser agendada."):
+            self.room_limiter.execute(solution)
 
 
 if __name__ == "__main__":

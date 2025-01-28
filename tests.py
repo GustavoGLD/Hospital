@@ -4,18 +4,22 @@ import unittest
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import Type
 from unittest.mock import MagicMock
 
 from loguru import logger
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 from tabulate import tabulate
 
 from app.models import SurgeryPossibleRooms
-from main import Algorithm, CacheInDict, Optimizer, Schedule, Surgery, Room, Patient, SurgeryPossibleTeams, \
-    Solver, FixedSchedules, apply_features, RoomLimiter
+from app.models import Room, Surgery, Patient, SurgeryPossibleTeams, Schedule
+from app.services.logic.schedule_builders.functions.apply_features import apply_features
+from app.services.logic.schedule_optimizers.optimizer import Optimizer
+from app.services.logic.schedule_builders.features.room_limiter import RoomLimiter
+from app.services.logic.schedule_builders.features.fixed_schedules import FixedSchedules
+from app.services.logic.schedule_builders.algorithm import Algorithm
+from app.services.logic.schedule_optimizers.solver import Solver
+from app.services.cache.cache_in_dict import CacheInDict
 from app.models.professional import Professional
 from app.models.team import Team
 from moonlogger import MoonLogger

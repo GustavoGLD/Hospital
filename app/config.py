@@ -13,7 +13,7 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = False
+    algorithm_details: bool = True
     optimizer_details: bool = True
 
 

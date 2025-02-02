@@ -4,6 +4,8 @@ from sqlmodel import SQLModel, Field, Relationship
 
 
 class Schedule(SQLModel, table=True):
+    __table_args__ = {'extend_existing': True}
+
     start_time: datetime
     fixed: bool = Field(default=False)
 

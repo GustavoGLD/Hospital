@@ -224,12 +224,18 @@ class SurgeryView:
 
 class CrudType(ABC):
     def __init__(self, model: Type[Base], view: SurgeryView):
-        self.selected_row: Optional[dict] = None
         self.view = view
         self.model = model
+        self.selected_row: dict[str, Any] = {}
+
+    def getting_selected_row(self) -> dict[str, Any]:
+        surgeries = get_table(Surgery)
+        df = pd.DataFrame(surgeries)
+        event = self.view.render_dataframe(df)
+        return df.iloc[event["selection"]["rows"][0]].to_dict() if event["selection"]["rows"] else None
 
     @abstractmethod
-    def render(self, selected_row: dict[str, Any] = None):
+    def render(self):
         raise NotImplementedError
 
     def add(self, val: BaseModel):
@@ -252,10 +258,11 @@ class CrudType(ABC):
 
 
 class CrudEntity(CrudType):
-    def render(self, selected_row: dict[str, Any] = None):
+    def render(self):
+        self.selected_row = self.getting_selected_row()
         self.view.render_add_btt(self.add)
-        self.view.render_edit_btt(self.edit, disabled=selected_row is None, values=selected_row)
-        self.view.render_del_btt(self.delete, disabled=selected_row is None, values=selected_row)
+        self.view.render_edit_btt(self.edit, disabled=self.selected_row is None, values=self.selected_row)
+        self.view.render_del_btt(self.delete, disabled=self.selected_row is None, values=self.selected_row)
         self.view.render_updt_btt(self.update, disabled=False)
 
     def edit(self, val: BaseModel):
@@ -300,51 +307,11 @@ class SurgeryController:
     def __init__(self, container=st.container(border=True)):
         self.selected_row: Optional[dict] = None
         self.view = SurgeryView(container)
-        self.crud = CrudEntity(self.view)
+        self.crud = CrudEntity(view=self.view, model=Surgery)
 
     def render(self):
-        self.selected_row = self.getting_selected_row()
-        self.view.render_add_btt(self.add)
-        self.view.render_edit_btt(self.edit, disabled=self.selected_row is None, values=self.selected_row)
-        self.view.render_del_btt(self.delete, disabled=self.selected_row is None, values=self.selected_row)
-        self.view.render_updt_btt(self.update, disabled=False)
+        self.crud.render()
 
-    def getting_selected_row(self) -> dict[str, Any]:
-        surgeries = get_table(Surgery)
-        df = pd.DataFrame(surgeries)
-        event = self.view.render_dataframe(df)
-        return df.iloc[event["selection"]["rows"][0]].to_dict() if event["selection"]["rows"] else None
-
-    def get_primary_key(self) -> str:
-        primary_keys = inspect(Surgery).primary_key
-        assert primary_keys, f"Primary key not found in {Surgery.__name__}"
-        assert len(primary_keys) == 1, f"Multiple primary keys found in {Surgery.__name__}"
-
-        return primary_keys[0].name
-
-    def add(self, val: BaseModel):
-        with Session(get_engine()) as session:
-            table = Table(Surgery.__name__, Base.metadata, autoload_with=get_engine())
-            session.execute(table.insert().values(**val.dict()))
-            session.commit()
-            st.rerun()
-
-    def edit(self, val: BaseModel):
-        with Session(get_engine()) as session:
-            table = Table(Surgery.__name__, Base.metadata, autoload_with=get_engine())
-            session.execute(table.update().values(**val.dict()).where(table.c.id == self.selected_row["id"]))
-            session.commit()
-            st.rerun()
-
-    def delete(self):
-        with Session(get_engine()) as session:
-            table = Table(Surgery.__name__, Base.metadata, autoload_with=get_engine())
-            session.execute(table.delete().where(table.c.id == self.selected_row["id"]))
-            session.commit()
-            st.rerun()
-
-    def update(self):
-        st.rerun()
 
 surg_tab, room_tab, team_tab = st.tabs(["💉 Cirurgias", "🏥 Salas", "👨‍⚕️ Equipes"])
 SurgeryController(surg_tab).render()

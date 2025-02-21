@@ -171,16 +171,21 @@ def get_engine():
 
 
 
-def main():
+def index():
 
     '''CRUD table demo'''
-
+    put_link('Go cirurgia', app='cirurgia')
     # Header
     # datatable = [header, row1, row2, row3] for the crud table
-    growth_table = CRUDTable(CirurgiaForms())
-    growth_table.put_crud_table()
+    #growth_table = CRUDTable(CirurgiaForms())
+    #growth_table.put_crud_table()
+
+
+tasks = {
+    'index': index,
+    'cirurgias': CRUDTable(CirurgiaForms()).put_crud_table,
+}
 
 
 if __name__ == '__main__':
-    print(f"{CirurgiaForms().model=}")
-    start_server(main, debug=True, port=9999)
+    start_server(tasks, debug=True, port=9999)

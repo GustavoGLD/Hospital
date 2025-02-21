@@ -7,7 +7,7 @@ from typing import TypeVar, Type, Generic, Any
 
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
-from app.models import Surgery, Patient
+from app.models import Surgery, Patient, Team, Room, Schedule
 from pywebio_app import *
 from pywebio.output import *
 from pywebio.input import *
@@ -147,7 +147,7 @@ class MyPywebioForms(ABC, Generic[T]):
         pass
 
 
-class CirurgiaForms(MyPywebioForms[Surgery]):
+class SurgeryForms(MyPywebioForms[Surgery]):
     def __init__(self):
         super().__init__(Surgery)
 
@@ -159,6 +159,64 @@ class CirurgiaForms(MyPywebioForms[Surgery]):
             priority=input("Prioridade da cirurgia:", type=NUMBER, required=True),
             patient_id=select("Paciente:", options=[
                 {"label": patient.name, "value": patient.id} for patient in get_rows(Patient)
+            ], required=True)
+        )
+
+
+class PatientForms(MyPywebioForms[Patient]):
+    def __init__(self):
+        super().__init__(Patient)
+
+    @staticmethod
+    def generate_pywebio_forms() -> object:
+        return Patient(
+            name=input("Nome do paciente:", required=True)
+        )
+
+
+class TeamForms(MyPywebioForms[Team]):
+    def __init__(self):
+        super().__init__(Team)
+
+    @staticmethod
+    def generate_pywebio_forms() -> object:
+        return Team(
+            name=input("Nome da equipe:", required=True)
+        )
+
+
+class RoomForms(MyPywebioForms[Room]):
+    def __init__(self):
+        super().__init__(Room)
+
+    @staticmethod
+    def generate_pywebio_forms() -> object:
+        return Room(
+            name=input("Nome da sala:", required=True)
+        )
+
+
+
+class ScheduleForms(MyPywebioForms[Schedule]):
+    def __init__(self):
+        super().__init__(Schedule)
+
+    @staticmethod
+    def generate_pywebio_forms() -> object:
+        return Schedule(
+            start_time=input("Data da cirurgia:", type=DATETIME, required=True),
+            fixed=radio("Tipo de cirurgia", options=[
+                {"label": "Eletiva (agendada)", "value": True},
+                {"label": "Emergencia/Urgencia (a agendar)", "value": False}
+            ], required=True),
+            surgery_id=select("Cirurgia:", options=[
+                {"label": surgery.name, "value": surgery.id} for surgery in get_rows(Surgery)
+            ], required=True),
+            room_id=select("Sala:", options=[
+                {"label": room.name, "value": room.id} for room in get_rows(Room)
+            ], required=True),
+            team_id=select("Equipe:", options=[
+                {"label": team.name, "value": team.id} for team in get_rows(Team)
             ], required=True)
         )
 
@@ -179,11 +237,19 @@ def get_engine():
 
 def index():
     put_link('Go cirurgia', app='cirurgias')
+    put_link('Go paciente', app='pacientes')
+    put_link('Go equipe', app='equipes')
+    put_link('Go sala', app='salas')
+    put_link('Go agendamento', app='agendamentos')
 
 
 tasks = {
     'index': index,
-    'cirurgias': CRUDTable(CirurgiaForms()).put_crud_table,
+    'cirurgias': CRUDTable(SurgeryForms()).put_crud_table,
+    'pacientes': CRUDTable(PatientForms()).put_crud_table,
+    'equipes': CRUDTable(TeamForms()).put_crud_table,
+    'salas': CRUDTable(RoomForms()).put_crud_table,
+    'agendamentos': CRUDTable(ScheduleForms()).put_crud_table,
 }
 
 

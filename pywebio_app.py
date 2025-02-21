@@ -2,8 +2,11 @@
 #1) define function: generate_datatable(). Make sure it returns your table as a 2d array (as shown in line 86-96).
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
-from sqlalchemy import text, inspect
+from abc import ABC, abstractmethod
+from typing import TypeVar, Type, Generic
 
+from sqlalchemy import text, inspect
+from sqlmodel import SQLModel
 from app.models import Surgery
 from pywebio_app import *
 from pywebio.output import *
@@ -14,7 +17,9 @@ from functools import partial
 
 
 class CRUDTable:
-    def __init__(self):
+    def __init__(self, forms: "MyPywebioForms"):
+        self.forms = forms
+        self.model = forms.model
         self.datatable = self.gen_data_func()
 
     def put_crud_table(self):
@@ -39,7 +44,6 @@ class CRUDTable:
                 None,
                 put_button("Atualizar tabela", onclick=lambda: run_js('window.location.reload()')),
             ])
-
 
     def handle_edit_delete(self, dummy, custom_func, i):
         '''when edit/delete button is pressed, execute the custom edit/delete
@@ -77,7 +81,7 @@ class CRUDTable:
 
     def gen_data_func(self):
         with Session(get_engine()) as session:
-            return session.query(Surgery).all()
+            return session.query(self.model).all()
 
     def get_primary_key(self, model) -> str:
         """Retorna o nome da chave primária da tabela do modelo informado."""
@@ -88,7 +92,7 @@ class CRUDTable:
         if i == 0:  # Evita editar o cabeçalho da tabela
             return table
 
-        primary_key = self.get_primary_key(Surgery)
+        primary_key = self.get_primary_key(self.model)
         record = table[i]  # Obtém o registro da linha selecionada
         record_dict = record.model_dump()  # Converte para dicionário
 
@@ -101,12 +105,12 @@ class CRUDTable:
 
         # Atualiza o banco de dados
         with Session(get_engine()) as session:
-            obj = session.get(Surgery, record_dict[primary_key])
+            obj = session.get(self.model, record_dict[primary_key])
             setattr(obj, field_to_edit, new_value)  # Atualiza o campo
             session.commit()
 
         # Atualiza a tabela na interface
-        table[i] = session.get(Surgery, record_dict[primary_key])
+        table[i] = session.get(self.model, record_dict[primary_key])
         return table
 
     def del_func(self, table, i):
@@ -115,12 +119,7 @@ class CRUDTable:
 
     def add_func(self, table):
         """Adiciona um novo registro ao banco de dados."""
-        new_record = Surgery(
-            name=input("Nome da cirurgia:", required=True),
-            duration=input("Duração da cirurgia:", type=NUMBER, required=True),
-            priority=input("Prioridade da cirurgia:", type=NUMBER, required=True),
-            patient_id=input("ID do paciente:", type=NUMBER, required=False)
-        )
+        new_record = self.forms.generate_pywebio_forms()
 
         with Session(get_engine()) as session:
             session.add(new_record)
@@ -128,6 +127,33 @@ class CRUDTable:
 
         table.append(new_record)
         return table
+
+
+T = TypeVar("T", bound=Type[SQLModel])
+
+
+class MyPywebioForms(ABC, Generic[T]):
+    def __init__(self, model):
+        self.model = model
+
+    @staticmethod
+    @abstractmethod
+    def generate_pywebio_forms() -> T:
+        pass
+
+
+class CirurgiaForms(MyPywebioForms[Surgery]):
+    def __init__(self):
+        super().__init__(Surgery)
+
+    @staticmethod
+    def generate_pywebio_forms() -> object:
+        return Surgery(
+            name=input("Nome da cirurgia:", required=True),
+            duration=input("Duração da cirurgia:", type=NUMBER, required=True),
+            priority=input("Prioridade da cirurgia:", type=NUMBER, required=True),
+            patient_id=input("ID do paciente:", type=NUMBER, required=False)
+        )
 
 
 DATABASE_URL = "sqlite:///database.db"
@@ -151,9 +177,10 @@ def main():
 
     # Header
     # datatable = [header, row1, row2, row3] for the crud table
-    growth_table = CRUDTable()
+    growth_table = CRUDTable(CirurgiaForms())
     growth_table.put_crud_table()
 
 
 if __name__ == '__main__':
+    print(f"{CirurgiaForms().model=}")
     start_server(main, debug=True, port=9999)

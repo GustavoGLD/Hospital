@@ -3,11 +3,11 @@
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
 from abc import ABC, abstractmethod
-from typing import TypeVar, Type, Generic
+from typing import TypeVar, Type, Generic, Any
 
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
-from app.models import Surgery
+from app.models import Surgery, Patient
 from pywebio_app import *
 from pywebio.output import *
 from pywebio.input import *
@@ -129,6 +129,11 @@ class CRUDTable:
         return table
 
 
+def get_rows(model: Type[SQLModel]) -> list[SQLModel]:
+    with Session(get_engine()) as session:
+        return session.query(model).all()
+
+
 T = TypeVar("T", bound=Type[SQLModel])
 
 
@@ -152,7 +157,9 @@ class CirurgiaForms(MyPywebioForms[Surgery]):
             name=input("Nome da cirurgia:", required=True),
             duration=input("Duração da cirurgia:", type=NUMBER, required=True),
             priority=input("Prioridade da cirurgia:", type=NUMBER, required=True),
-            patient_id=input("ID do paciente:", type=NUMBER, required=False)
+            patient_id=select("Paciente:", options=[
+                {"label": patient.name, "value": patient.id} for patient in get_rows(Patient)
+            ], required=True)
         )
 
 
@@ -170,15 +177,8 @@ def get_engine():
     return engine
 
 
-
 def index():
-
-    '''CRUD table demo'''
-    put_link('Go cirurgia', app='cirurgia')
-    # Header
-    # datatable = [header, row1, row2, row3] for the crud table
-    #growth_table = CRUDTable(CirurgiaForms())
-    #growth_table.put_crud_table()
+    put_link('Go cirurgia', app='cirurgias')
 
 
 tasks = {

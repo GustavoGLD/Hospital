@@ -236,11 +236,11 @@ def get_engine():
 
 
 def index():
-    put_link('Go cirurgia', app='cirurgias')
-    put_link('Go paciente', app='pacientes')
-    put_link('Go equipe', app='equipes')
-    put_link('Go sala', app='salas')
-    put_link('Go agendamento', app='agendamentos')
+    put_button('Go cirurgia', partial(go_app, 'cirurgias'))
+    put_button('Go paciente', partial(go_app, 'pacientes'))
+    put_button('Go equipe', partial(go_app, 'equipes'))
+    put_button('Go sala', partial(go_app, 'salas'))
+    put_button('Go agendamento', partial(go_app, 'agendamentos'))
 
 
 tasks = {

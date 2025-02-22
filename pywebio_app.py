@@ -196,7 +196,6 @@ class RoomForms(MyPywebioForms[Room]):
         )
 
 
-
 class ScheduleForms(MyPywebioForms[Schedule]):
     def __init__(self):
         super().__init__(Schedule)
@@ -236,11 +235,15 @@ def get_engine():
 
 
 def index():
-    put_button('Go cirurgia', partial(go_app, 'cirurgias'))
-    put_button('Go paciente', partial(go_app, 'pacientes'))
-    put_button('Go equipe', partial(go_app, 'equipes'))
-    put_button('Go sala', partial(go_app, 'salas'))
-    put_button('Go agendamento', partial(go_app, 'agendamentos'))
+    put_grid([
+        [
+            put_button('Cirurgias', partial(go_app, 'cirurgias')),
+            put_button('Pacientes', partial(go_app, 'pacientes')),
+            put_button('Equipes', partial(go_app, 'equipes')),
+            put_button('Salas', partial(go_app, 'salas')),
+            put_button('Agendamentos', partial(go_app, 'agendamentos')),
+        ]
+    ])
 
 
 tasks = {

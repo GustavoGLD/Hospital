@@ -5,6 +5,7 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Type, Generic, Any
 
+from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
@@ -23,21 +24,27 @@ class CRUDTable:
         self.datatable = self.gen_data_func()
 
     def put_crud_table(self):
-        # the CRUD table without the header
+        """Exibe a tabela CRUD atualizada na interface do PyWebIO."""
         table = []
 
-        for i, table_row in enumerate(self.datatable):
-            table_row = [put_text(row_element[1]) for row_element in table_row] + [
-                # use i - 1 here so that it counts after the header row.
-                put_buttons(["◀️"], onclick=partial(self.handle_edit_delete, custom_func=self.edit_func, i=i)),
-                put_buttons(["✖️"], onclick=partial(self.handle_edit_delete, custom_func=self.del_func, i=i))
+        # Garante que a tabela tenha dados antes de acessar a chave
+        if not self.datatable:
+            put_text("Nenhum dado encontrado.")
+            return
+
+        model_columns = list(self.datatable[0].keys())  # Agora estamos lidando com dicionários
+        print(f'{model_columns=}')
+        print(f'{self.datatable=}')
+
+        for i, row in enumerate(self.datatable):
+            table_row = [put_text(str(row[col])) for col in model_columns] + [
+                put_buttons(["✏️"], onclick=partial(self.handle_edit_delete, custom_func=self.edit_func, i=i)),
+                put_buttons(["❌"], onclick=partial(self.handle_edit_delete, custom_func=self.del_func, i=i))
             ]
             table.append(table_row)
 
         with use_scope("table_scope", clear=True):
-            put_table(table,
-                      header=list(self.datatable[0].model_dump().keys()) + ["Edit", "Delete"]
-                      )
+            put_table(table, header=model_columns + ["Editar", "Excluir"])
 
             put_row([
                 put_button("Adicionar novo registro", onclick=partial(self.add_func, table=self.datatable)),
@@ -46,86 +53,90 @@ class CRUDTable:
             ])
 
     def handle_edit_delete(self, dummy, custom_func, i):
-        '''when edit/delete button is pressed, execute the custom edit/delete
-        function as well as update CRUD table'''
-
-        # originally had it in the custom functions in step5_filemanager.py,
-        # but thought its probably best to have it within the crud_table class to
-        # requery all the filepaths and refresh the crud_table
-
+        """Gerencia a edição ou exclusão de um registro."""
         if custom_func == self.edit_func:
             self.datatable = custom_func(self.datatable, i)
-            # refresh table output
-            self.put_crud_table()
+            self.put_crud_table()  # Atualiza a interface
 
-        # if it's the delete function, ask for confirmation
         if custom_func == self.del_func:
-
-            # melt the data (row becomes key, value)
-            datatable_melt = list(zip(self.datatable[0], self.datatable[i]))
+            datatable_melt = list(self.datatable[i].items())
             popup(
-                '⚠️ Are you sure you want to delete?',
+                '⚠️ Tem certeza que deseja excluir?',
                 [
-                    put_table(datatable_melt, header=["row", "data"]),
-                    put_buttons(['confirm', 'cancel'],
-                                onclick = lambda x: self.handle_confirm(i) if x == 'confirm' else close_popup())
+                    put_table(datatable_melt, header=["Campo", "Valor"]),
+                    put_buttons(['Confirmar', 'Cancelar'],
+                                onclick=lambda x: self.handle_confirm(i) if x == 'Confirmar' else close_popup())
                 ]
             )
 
     def handle_confirm(self, i):
-        ''' if confirm button pressed in deletion confirmation, delete, and also close popup'''
+        """Confirma e executa a exclusão de um registro."""
         self.datatable = self.del_func(self.datatable, i)
         close_popup()
-        # refresh table output
-        self.put_crud_table()
+        self.put_crud_table()  # Atualiza a tabela na interface
 
     def gen_data_func(self):
+        """Busca os dados do banco de dados e os retorna como dicionários."""
         with Session(get_engine()) as session:
-            return session.query(self.model).all()
+            return [record.model_dump() for record in session.query(self.model).all()]
 
-    def get_primary_key(self, model) -> str:
-        """Retorna o nome da chave primária da tabela do modelo informado."""
-        return inspect(model).primary_key[0].name  # Obtém dinamicamente a chave primária
+    def get_primary_key(self):
+        """Retorna o nome da chave primária do modelo."""
+        return inspect(self.model).primary_key[0].name
 
     def edit_func(self, table, i):
-        """Edita um registro no banco de dados baseado na entrada do usuário."""
-        if i == 0:  # Evita editar o cabeçalho da tabela
+        """Edita um registro do banco de dados e atualiza a interface."""
+        if i < 0 or i >= len(table):  # Validação do índice
             return table
 
-        primary_key = self.get_primary_key(self.model)
-        record = table[i]  # Obtém o registro da linha selecionada
-        record_dict = record.model_dump()  # Converte para dicionário
+        primary_key = self.get_primary_key()
+        record = table[i]  # Agora é um dicionário
+        record_id = record[primary_key]
 
-        # Pergunta qual campo editar
-        field_to_edit = select("Selecione o campo para editar:", record_dict.keys())
+        field_to_edit = select("Selecione o campo para editar:", list(record.keys()))
         if not field_to_edit:
-            return table  # Se o usuário cancelar, não faz nada
+            return table
 
-        new_value = input(f'Novo valor para {field_to_edit}:', value=str(record_dict[field_to_edit]))
+        new_value = input(f'Novo valor para {field_to_edit}:', value=str(record[field_to_edit]))
 
-        # Atualiza o banco de dados
         with Session(get_engine()) as session:
-            obj = session.get(self.model, record_dict[primary_key])
-            setattr(obj, field_to_edit, new_value)  # Atualiza o campo
-            session.commit()
+            obj = session.get(self.model, record_id)
+            if obj:
+                setattr(obj, field_to_edit, new_value)
+                session.commit()
 
-        # Atualiza a tabela na interface
-        table[i] = session.get(self.model, record_dict[primary_key])
+        # Atualiza o dicionário localmente para refletir a mudança na interface
+        table[i][field_to_edit] = new_value
         return table
 
     def del_func(self, table, i):
-        table.pop(i)
+        """Remove um registro do banco de dados e atualiza a interface."""
+        primary_key = self.get_primary_key()
+        record_id = table[i][primary_key]
+
+        with Session(get_engine()) as session:
+            obj = session.get(self.model, record_id)
+            if obj:
+                session.delete(obj)
+                session.commit()
+
+        table.pop(i)  # Remove da lista local
+        self.put_crud_table()
         return table
 
     def add_func(self, table):
-        """Adiciona um novo registro ao banco de dados."""
+        """Adiciona um novo registro ao banco de dados e atualiza a tabela."""
         new_record = self.forms.generate_pywebio_forms()
+        if not new_record:
+            raise ValueError("Erro ao criar novo registro.")
 
         with Session(get_engine()) as session:
             session.add(new_record)
             session.commit()
+            session.refresh(new_record)  # Garante que o ID seja atualizado
 
-        table.append(new_record)
+        table.append(new_record.model_dump())  # Adiciona o novo registro como dicionário
+        self.put_crud_table()
         return table
 
 
@@ -138,7 +149,7 @@ T = TypeVar("T", bound=Type[SQLModel])
 
 
 class MyPywebioForms(ABC, Generic[T]):
-    def __init__(self, model):
+    def __init__(self, model: Type[SQLModel]):
         self.model = model
 
     @staticmethod

@@ -3,6 +3,7 @@
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
 import json
+import os
 from abc import ABC, abstractmethod
 from typing import TypeVar, Type, Generic, Any
 
@@ -11,7 +12,7 @@ from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
-from main import main
+from main import main, get_engine
 from pywebio_app import *
 from pywebio.output import *
 from pywebio.input import *
@@ -234,18 +235,7 @@ class ScheduleForms(MyPywebioForms[Schedule]):
         )
 
 
-DATABASE_URL = "sqlite:///database.db"
-
 from sqlmodel import SQLModel, Session, create_engine
-
-
-def get_engine():
-    engine = create_engine(DATABASE_URL, echo=True)
-    try:
-        SQLModel.metadata.create_all(engine)
-    except Exception:
-        pass
-    return engine
 
 
 def index():

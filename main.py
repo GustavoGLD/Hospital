@@ -26,8 +26,17 @@ from sqlmodel import create_engine, Session
 from datetime import datetime
 
 
+def get_engine():
+    engine = create_engine(str(os.getenv("DB_URL")), echo=True)
+    try:
+        SQLModel.metadata.create_all(engine)
+    except Exception:
+        pass
+    return engine
+
+
 def main() -> Algorithm:
-    engine = create_engine(str(os.getenv("DB_URL")))
+    engine = get_engine()
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:

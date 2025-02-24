@@ -2,13 +2,16 @@
 #1) define function: generate_datatable(). Make sure it returns your table as a 2d array (as shown in line 86-96).
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
+import json
 from abc import ABC, abstractmethod
 from typing import TypeVar, Type, Generic, Any
 
+import pandas as pd
 from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
+from main import main
 from pywebio_app import *
 from pywebio.output import *
 from pywebio.input import *
@@ -246,6 +249,10 @@ def get_engine():
 
 
 def index():
+    #put_text('Bem-vindo ao sistema de agendamento de cirurgias!')
+    put_markdown('# Agendamento de Cirurgias - SISCOF')
+    put_success('Bem-vindo ao sistema de agendamento de cirurgias!')
+    put_text('Selecione uma tabela para configurar as dados:')
     put_grid([
         [
             put_button('Cirurgias', partial(go_app, 'cirurgias')),
@@ -255,6 +262,21 @@ def index():
             put_button('Agendamentos', partial(go_app, 'agendamentos')),
         ]
     ])
+    put_markdown('---')
+
+    def execute_algorithm():
+        with use_scope("teste", clear=True):
+            put_warning("Executando...")
+
+        alg = main()
+
+        with use_scope("teste", clear=True):
+            put_success("Concluído!")
+            put_text("Resultado:")
+            df = pd.DataFrame(alg.rooms_according_to_time)
+            put_datatable(df.applymap(str).to_dict(orient='records'))
+
+    put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
 
 
 tasks = {

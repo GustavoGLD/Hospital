@@ -2,8 +2,8 @@ from loguru import logger
 
 
 class DefaultConfig:
-    num_generations = 25
-    sol_per_pop = 50
+    num_generations = 5
+    sol_per_pop = 25
     num_parents_mating = 9
     mutation_percent_genes = [5, 4]
     keep_parents = -1
@@ -13,8 +13,8 @@ class DefaultConfig:
 
 
 class LogConfig:
-    algorithm_details: bool = True
-    optimizer_details: bool = True
+    algorithm_details: bool = False
+    optimizer_details: bool = False
 
 
 additional_tests = True

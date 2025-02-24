@@ -25,8 +25,8 @@ from sqlmodel import select
 from sqlmodel import create_engine, Session
 from datetime import datetime
 
-if __name__ == "__main__":
 
+def main() -> Algorithm:
     engine = create_engine(str(os.getenv("DB_URL")))
     SQLModel.metadata.create_all(engine)
 
@@ -58,3 +58,8 @@ if __name__ == "__main__":
             raise e
         else:
             logger.success(f"Análise de Desempenho. Tempo gasto: {MoonLogger.time_dict}")
+            return algorithm
+
+
+if __name__ == "__main__":
+    main()

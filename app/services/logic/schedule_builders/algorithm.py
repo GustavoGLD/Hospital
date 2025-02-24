@@ -43,7 +43,7 @@ class Algorithm:
         return self.__fixed_schedules_disregarded
 
     @fixed_schedules_disregarded.setter
-    @MoonLogger.log_func(enabled=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def fixed_schedules_disregarded(self, value):
         self.__fixed_schedules_disregarded = value
 
@@ -57,7 +57,7 @@ class Algorithm:
         return self.__fixed_schedules_considered
 
     @fixed_schedules_considered.setter
-    @MoonLogger.log_func(enabled=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def fixed_schedules_considered(self, value):
         self.__fixed_schedules_considered = value
 
@@ -66,7 +66,7 @@ class Algorithm:
         return self.__empty_schedules_considered
 
     @empty_schedules_considered.setter
-    @MoonLogger.log_func(enabled=True)
+    @MoonLogger.log_func(enabled=LogConfig.algorithm_details)
     def empty_schedules_considered(self, value):
         self.__empty_schedules_considered = value
 
@@ -178,6 +178,8 @@ class Algorithm:
 
     def print_table(self):
         df = pd.DataFrame(self.rooms_according_to_time)
+        df.to_csv('rooms_according_to_time.csv')
+
         logger.debug("\n" + str(tabulate(df, headers="keys", tablefmt="grid")))
 
     @MoonLogger.log_func(enabled=LogConfig.algorithm_details)

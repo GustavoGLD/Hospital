@@ -2,6 +2,7 @@
 #1) define function: generate_datatable(). Make sure it returns your table as a 2d array (as shown in line 86-96).
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
+import contextlib
 import json
 import os
 from abc import ABC, abstractmethod
@@ -20,14 +21,18 @@ from pywebio.session import *
 from pywebio import start_server
 from functools import partial
 
+from tests import TestAlgorithmExecuteWithMoreData
+from sqlmodel import select as slc
 
 class CRUDTable:
     def __init__(self, forms: "MyPywebioForms"):
         self.forms = forms
         self.model = forms.model
-        self.datatable = self.gen_data_func()
+        self.datatable: list
 
     def put_crud_table(self):
+        self.datatable = self.gen_data_func()
+
         """Exibe a tabela CRUD atualizada na interface do PyWebIO."""
         table = []
 
@@ -82,7 +87,9 @@ class CRUDTable:
     def gen_data_func(self):
         """Busca os dados do banco de dados e os retorna como dicionários."""
         with Session(get_engine()) as session:
-            return [record.model_dump() for record in session.query(self.model).all()]
+            r = [record.model_dump() for record in session.exec(slc(self.model)).all()]
+            print(f'{r=}')
+            return r
 
     def get_primary_key(self):
         """Retorna o nome da chave primária do modelo."""
@@ -238,8 +245,15 @@ class ScheduleForms(MyPywebioForms[Schedule]):
 from sqlmodel import SQLModel, Session, create_engine
 
 
+def clear_all_tables(engine):
+    with contextlib.closing(engine.connect()) as con:
+        trans = con.begin()
+        for table in reversed(SQLModel.metadata.sorted_tables):
+            con.execute(table.delete())
+        trans.commit()
+
+
 def index():
-    #put_text('Bem-vindo ao sistema de agendamento de cirurgias!')
     put_markdown('# Agendamento de Cirurgias - SISCOF')
     put_success('Bem-vindo ao sistema de agendamento de cirurgias!')
     put_text('Selecione uma tabela para configurar as dados:')
@@ -266,7 +280,29 @@ def index():
             df = pd.DataFrame(alg.rooms_according_to_time)
             put_datatable(df.applymap(str).to_dict(orient='records'))
 
+    def add_minimal_test():
+        clear_all_tables(get_engine())
+
+        teams = []
+        patients = []
+        surgeries = []
+        surgery_possible_teams = []
+        rooms = []
+
+        TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+        with Session(get_engine()) as session:
+            session.add_all(teams)
+            session.add_all(patients)
+            session.add_all(surgeries)
+            session.add_all(surgery_possible_teams)
+            session.add_all(rooms)
+            session.commit()
+
+        run_js('window.location.reload()')
+
     put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
+    put_button('Dados de teste - Algoritmo Mínimo', onclick=add_minimal_test)
 
 
 tasks = {

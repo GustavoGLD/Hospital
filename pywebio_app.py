@@ -13,6 +13,8 @@ from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
+from app.services.logic.schedule_builders.features.fixed_schedules import FixedSchedules
+from app.services.logic.schedule_builders.features.room_limiter import RoomLimiter
 from main import main, get_engine
 from pywebio_app import *
 from pywebio.output import *
@@ -301,8 +303,52 @@ def index():
 
         run_js('window.location.reload()')
 
-    put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
+    def add_limiteroom_test():
+        clear_all_tables(get_engine())
+
+        teams = []
+        patients = []
+        surgeries = []
+        surgery_possible_teams = []
+        rooms = []
+
+        TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+        with Session(get_engine()) as session:
+            session.add_all(teams)
+            session.add_all(patients)
+            session.add_all(surgeries)
+            session.add_all(surgery_possible_teams)
+            session.add_all(rooms)
+            session.commit()
+
+        run_js('window.location.reload()')
+
+    class FeaturesAlg:
+        selecteds = []
+
+        feature = {
+            "Restringir salas": RoomLimiter,
+            "Pré-agendamentos": FixedSchedules
+        }
+
+        @staticmethod
+        def get_options():
+            return [{"label": key, "value": key} for i, key in enumerate(FeaturesAlg.feature.keys())]
+
+        @staticmethod
+        def get_features(values: list) -> list:
+            return [FeaturesAlg.feature[key] for key in values]
+
+    def view_select_features():
+        print(FeaturesAlg.selecteds)
+        selecteds = select('`CTRL`+CLICK para selecionar múltiplas Features', options=FeaturesAlg.get_options(),
+                           value=FeaturesAlg.selecteds, multiple=True)
+        FeaturesAlg.selecteds = selecteds
+
+    put_button('Selecionar features', onclick=view_select_features)
     put_button('Dados de teste - Algoritmo Mínimo', onclick=add_minimal_test)
+    put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
 
 
 tasks = {

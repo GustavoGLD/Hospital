@@ -29,7 +29,7 @@ from pywebio.session import *
 from pywebio import start_server
 from functools import partial
 
-from tests import TestAlgorithmExecuteWithMoreData
+from tests import TestAlgorithmExecuteWithMoreData, TestFixedSchedulesExecute, TestRoomLimiter
 from sqlmodel import select as slc
 
 
@@ -336,6 +336,27 @@ def index():
 
         run_js('window.location.reload()')
 
+    def add_fixed_schedules_test():
+        clear_all_tables(get_engine())
+
+        teams = []
+        patients = []
+        surgeries = []
+        surgery_possible_teams = []
+        rooms = []
+
+        TestFixedSchedulesExecute.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+        with Session(get_engine()) as session:
+            session.add_all(teams)
+            session.add_all(patients)
+            session.add_all(surgeries)
+            session.add_all(surgery_possible_teams)
+            session.add_all(rooms)
+            session.commit()
+
+        run_js('window.location.reload()')
+
     def add_limiteroom_test():
         clear_all_tables(get_engine())
 
@@ -363,9 +384,16 @@ def index():
                            value=FeaturesAlg.selecteds, multiple=True)
         FeaturesAlg.selecteds = selecteds
 
-    put_button('Selecionar features', onclick=view_select_features)
-    put_button('Dados de teste - Algoritmo Mínimo', onclick=add_minimal_test)
-    put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
+    def select_fake_data():
+        select('Testes', options=['Teste de Algoritmo Mínimo', 'Teste de Pré-agendamentos', 'Teste de Restrição de Salas'])
+
+    put_grid([
+        [
+            put_button('Selecionar features', onclick=view_select_features),
+            put_button('Utilizar Dados Falsos', onclick=select_fake_data),
+            put_button('Executar algoritmo de agendamento', onclick=execute_algorithm),
+        ]
+    ])
 
 
 tasks = {

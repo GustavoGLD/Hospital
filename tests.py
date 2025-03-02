@@ -576,41 +576,46 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
 
 
 class TestFixedSchedulesExecute(unittest.TestCase):
+    @staticmethod
+    def setting_up(teams: list, patients: list, surgeries: list, surgery_possible_teams: list, rooms: list):
+        teams.extend([
+            Team(id=i, name=f"Equipe {i}") for i in range(1, 11)  # 10 equipes
+        ])
+
+        patients.extend([
+            Patient(id=i, name=f"Paciente {i}") for i in range(1, 21)  # 20 pacientes
+        ])
+
+        surgeries.extend([
+            Surgery(id=i, name=f"Cirurgia {i}", duration=(i + 1) * 30, patient_id=(i % 20) + 1, priority=i % 5 + 1) for
+            i in range(1, 21)  # 20 cirurgias
+        ])
+
+        surgery_possible_teams.extend([
+            SurgeryPossibleTeams(surgery_id=i, team_id=(i % 10) + 1) for i in range(1, 21)
+        ])
+
+        rooms.extend([
+            Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
+        ])
+
     def setUp(self):
         logger.info("Configurando um grande conjunto de dados para teste")
         """Configura um grande conjunto de dados para teste."""
         self.session = setup_test_session()
 
-        # Criar e adicionar equipes na sessão
-        self.teams = [
-            Team(id=i, name=f"Equipe {i}") for i in range(1, 11)  # 10 equipes
-        ]
+        self.teams = []
+        self.patients = []
+        self.surgeries = []
+        surgery_possible_teams = []
+        self.rooms = []
+
+        self.setting_up(self.teams, self.patients, self.surgeries, surgery_possible_teams, self.rooms)
+
         self.session.add_all(self.teams)
-
-        # Criar e adicionar pacientes na sessão
-        self.patients = [
-            Patient(id=i, name=f"Paciente {i}") for i in range(1, 21)  # 20 pacientes
-        ]
         self.session.add_all(self.patients)
-
-        # Criar e adicionar cirurgias na sessão
-        self.surgeries = [
-            Surgery(id=i, name=f"Cirurgia {i}", duration=(i + 1) * 30, patient_id=(i % 20) + 1, priority=i % 5 + 1)
-            for i in range(1, 21)  # 20 cirurgias
-        ]
         self.session.add_all(self.surgeries)
-
-        # Criar possíveis equipes para as cirurgias
-        surgery_possible_teams = [
-            SurgeryPossibleTeams(surgery_id=i, team_id=(i % 10) + 1) for i in range(1, 21)
-            # Cada cirurgia associada a uma equipe
-        ]
         self.session.add_all(surgery_possible_teams)
-
-        # Criar salas
-        self.rooms = [
-            Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
-        ]
         self.session.add_all(self.rooms)
 
         now = datetime.now()
@@ -844,8 +849,9 @@ class TestRoomLimiter(unittest.TestCase):
         self.cache.load_all_data(self.session)
 
         now = datetime.now()
+        self.solver = Solver(self.cache)
         scheduler = apply_features(Algorithm, RoomLimiter)
-        self.room_limiter = scheduler(self.surgeries, self.cache, now)
+        self.room_limiter = scheduler(self.solver.mobile_surgeries, self.cache, now)
 
         logger.info(f"{self.teams=}")
         logger.info(f"{self.rooms=}")

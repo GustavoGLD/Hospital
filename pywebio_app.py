@@ -6,6 +6,7 @@ import contextlib
 import json
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TypeVar, Type, Generic, Any
 
 import pandas as pd
@@ -13,8 +14,13 @@ from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
+from app.services.cache.cache_in_dict import CacheInDict
+from app.services.logic.schedule_builders.algorithm import Algorithm
 from app.services.logic.schedule_builders.features.fixed_schedules import FixedSchedules
 from app.services.logic.schedule_builders.features.room_limiter import RoomLimiter
+from app.services.logic.schedule_builders.functions.apply_features import apply_features
+from app.services.logic.schedule_optimizers.optimizer import Optimizer
+from app.services.logic.schedule_optimizers.solver import Solver
 from main import main, get_engine
 from pywebio_app import *
 from pywebio.output import *
@@ -25,6 +31,24 @@ from functools import partial
 
 from tests import TestAlgorithmExecuteWithMoreData
 from sqlmodel import select as slc
+
+
+class FeaturesAlg:
+    selecteds = []
+
+    feature = {
+        "Restringir salas": RoomLimiter,
+        "Pré-agendamentos": FixedSchedules
+    }
+
+    @staticmethod
+    def get_options():
+        return [{"label": key, "value": key} for i, key in enumerate(FeaturesAlg.feature.keys())]
+
+    @staticmethod
+    def get_features() -> list:
+        return [FeaturesAlg.feature[key] for key in FeaturesAlg.selecteds]
+
 
 class CRUDTable:
     def __init__(self, forms: "MyPywebioForms"):
@@ -274,12 +298,21 @@ def index():
         with use_scope("teste", clear=True):
             put_warning("Executando...")
 
-        alg = main()
+        with Session(get_engine()) as session:
+            cache = CacheInDict(session=session)
+            cache.load_all_data(session)
+
+        algorithm_base = apply_features(Algorithm, *FeaturesAlg.get_features())
+        optimizer = Optimizer(cache=cache, algorithm_base=algorithm_base)
+        solution = optimizer.run()
+
+        algorithm = Algorithm(optimizer.solver.mobile_surgeries, cache, datetime.now())
+        algorithm.execute(solution)
 
         with use_scope("teste", clear=True):
             put_success("Concluído!")
             put_text("Resultado:")
-            df = pd.DataFrame(alg.rooms_according_to_time)
+            df = pd.DataFrame(algorithm.rooms_according_to_time)
             put_datatable(df.applymap(str).to_dict(orient='records'))
 
     def add_minimal_test():
@@ -323,22 +356,6 @@ def index():
             session.commit()
 
         run_js('window.location.reload()')
-
-    class FeaturesAlg:
-        selecteds = []
-
-        feature = {
-            "Restringir salas": RoomLimiter,
-            "Pré-agendamentos": FixedSchedules
-        }
-
-        @staticmethod
-        def get_options():
-            return [{"label": key, "value": key} for i, key in enumerate(FeaturesAlg.feature.keys())]
-
-        @staticmethod
-        def get_features(values: list) -> list:
-            return [FeaturesAlg.feature[key] for key in values]
 
     def view_select_features():
         print(FeaturesAlg.selecteds)

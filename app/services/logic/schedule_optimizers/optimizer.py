@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Type
 
 import pygad
 from loguru import logger
@@ -13,13 +13,13 @@ from moonlogger import MoonLogger
 
 
 class Optimizer:
-    def __init__(self, cache: CacheInDict = None):
+    def __init__(self, cache: CacheInDict = None, algorithm_base: Type[Algorithm] = Algorithm):
         assert type(cache) == CacheInDict, f"Invalid cache type: {type(cache)}"
 
         self.cache = cache
         self.zero_time = datetime.now()
         self.solver = Solver(cache)
-        self.algorithm = Algorithm(self.solver.mobile_surgeries, cache, self.zero_time)
+        self.algorithm = algorithm_base(self.solver.mobile_surgeries, cache, self.zero_time)
 
     @MoonLogger.log_func(enabled=LogConfig.optimizer_details)
     def gene_space(self) -> List[Dict[str, int]]:

@@ -78,7 +78,7 @@ class Optimizer:
             num_generations=DefaultConfig.num_generations,
             num_parents_mating=DefaultConfig.num_parents_mating,
             sol_per_pop=DefaultConfig.sol_per_pop,
-            num_genes=len(self.cache.get_table(Surgery)),
+            num_genes=len(self.solver.mobile_surgeries),
             gene_space=gene_space_array,
             fitness_func=self.fitness_function(),
             random_mutation_min_val=-3,

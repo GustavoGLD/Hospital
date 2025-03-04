@@ -577,7 +577,8 @@ class TestAlgorithmExecuteWithMoreData(unittest.TestCase):
 
 class TestFixedSchedulesExecute(unittest.TestCase):
     @staticmethod
-    def setting_up(teams: list, patients: list, surgeries: list, surgery_possible_teams: list, rooms: list):
+    def setting_up(teams: list, patients: list, surgeries: list, surgery_possible_teams: list, rooms: list,
+                   schedules: list, now: datetime = datetime.now()):
         teams.extend([
             Team(id=i, name=f"Equipe {i}") for i in range(1, 11)  # 10 equipes
         ])
@@ -599,6 +600,8 @@ class TestFixedSchedulesExecute(unittest.TestCase):
             Room(id=i, name=f"Sala {i}") for i in range(1, 6)  # 5 salas
         ])
 
+        schedules.extend(TestFixedSchedulesExecute.generate_schedules(surgeries, now))
+
     def setUp(self):
         logger.info("Configurando um grande conjunto de dados para teste")
         """Configura um grande conjunto de dados para teste."""
@@ -609,8 +612,12 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         self.surgeries = []
         surgery_possible_teams = []
         self.rooms = []
+        now = datetime.now()
 
-        self.setting_up(self.teams, self.patients, self.surgeries, surgery_possible_teams, self.rooms)
+        self.schedules = self.generate_schedules(self.surgeries, now)
+
+        self.setting_up(self.teams, self.patients, self.surgeries, surgery_possible_teams, self.rooms, self.schedules,
+                        now)
 
         self.session.add_all(self.teams)
         self.session.add_all(self.patients)
@@ -621,7 +628,6 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         now = datetime.now()
 
         logger.info("Gerando agendamentos aleatórios para teste")
-        self.schedules = self.generate_schedules(now)
 
         logger.info(f"{now=}")
         for schedule in self.schedules:
@@ -642,7 +648,8 @@ class TestFixedSchedulesExecute(unittest.TestCase):
         self.algorithm = scheduler(self.solver.mobile_surgeries, self.cache, now)
         self.algorithm.step = 0
 
-    def generate_schedules(self, now: datetime):
+    @staticmethod
+    def generate_schedules(surgeries: list[Surgery], now: datetime):
         logger.info("Gerando agendamentos aleatórios para teste")
         num_schedules = random.randint(5, 8)
         surgery_ids = list(range(1, 21))  # IDs de cirurgia disponíveis
@@ -664,7 +671,7 @@ class TestFixedSchedulesExecute(unittest.TestCase):
                 # Gerar tempo inicial aleatório
                 start_time = now + timedelta(minutes=random.randint(0, 720))  # 12 horas de intervalo
                 surgery_duration = next(
-                    (s.duration for s in self.surgeries if s.id == surgery_id),
+                    (s.duration for s in surgeries if s.id == surgery_id),
                     None
                 )
 
@@ -679,7 +686,7 @@ class TestFixedSchedulesExecute(unittest.TestCase):
                 for schedule in schedules:
                     if schedule.room_id == room_id:
                         scheduled_duration = next(
-                            (s.duration for s in self.surgeries if s.id == schedule.surgery_id),
+                            (s.duration for s in surgeries if s.id == schedule.surgery_id),
                             None
                         )
                         if scheduled_duration is None:
@@ -858,6 +865,25 @@ class TestRoomLimiter(unittest.TestCase):
         logger.info(f"{self.surgeries=}")
         logger.info(f"{self.surgery_possible_rooms=}")
         logger.info(f"{self.surgery_possible_teams=}")
+
+    @staticmethod
+    def setting_up(teams, surgeries, surgery_possible_teams, surgery_possible_rooms, rooms):
+        n_teams = 7
+        n_rooms = 4
+        n_surgeries = comb(7, 2)
+
+        teams.extend([Team(id=i, name=f"Equipe {i}") for i in range(1, n_teams+1)])
+        rooms.extend([Room(id=i, name=f"Sala {i}") for i in range(1, n_rooms+1)])
+        surgeries.extend([Surgery(id=i, name=f"Cirurgia {i}", duration=(i % 3 + 1) * 60, patient_id=(i % 5) + 1, priority=(i % 3) + 1) for i in range(1, n_surgeries+1)])
+
+        for i, pair_teams in enumerate(itertools.combinations(teams, 2)):
+            pair_rooms = random.sample(rooms, 2)
+
+            surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[0].id))
+            surgery_possible_teams.append(SurgeryPossibleTeams(surgery_id=i+1, team_id=pair_teams[1].id))
+
+            surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[0].id))
+            surgery_possible_rooms.append(SurgeryPossibleRooms(surgery_id=i+1, room_id=pair_rooms[1].id))
 
     def test_room_limiter_execution(self):
         """Testa se o RoomLimiter executa com sucesso e gera agendamentos válidos."""

@@ -33,21 +33,103 @@ from tests import TestAlgorithmExecuteWithMoreData, TestFixedSchedulesExecute, T
 from sqlmodel import select as slc
 
 
-class FeaturesAlg:
-    selecteds = []
+def add_minimal_test():
+    clear_all_tables(get_engine())
 
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+
+    TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+def add_fixed_schedules_test():
+    clear_all_tables(get_engine())
+
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+    schedules = []
+
+    TestFixedSchedulesExecute.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms, schedules)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.add_all(schedules)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+def add_limiteroom_test():
+    clear_all_tables(get_engine())
+
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+
+    TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+class FeaturesAlg:
+
+    selecteds = []
     feature = {
         "Restringir salas": RoomLimiter,
         "Pré-agendamentos": FixedSchedules
     }
 
+    fake_data = {
+        "Teste Minimo": add_minimal_test,
+        #"Teste com salas limitadas": add_limiteroom_test,
+        "Teste com agendamentos fixos": add_fixed_schedules_test
+    }
+
     @staticmethod
-    def get_options():
+    def get_options() -> list[dict[str, str]]:
         return [{"label": key, "value": key} for i, key in enumerate(FeaturesAlg.feature.keys())]
 
     @staticmethod
     def get_features() -> list:
         return [FeaturesAlg.feature[key] for key in FeaturesAlg.selecteds]
+
+    @staticmethod
+    def get_fake_data_options() -> list[dict]:
+        return [{"label": key, "value": key} for key in FeaturesAlg.fake_data.keys()]
+
+    @staticmethod
+    def apply_fake_data(selected: str) -> None:
+        FeaturesAlg.fake_data[selected]()
 
 
 class CRUDTable:
@@ -315,69 +397,6 @@ def index():
             df = pd.DataFrame(algorithm.rooms_according_to_time)
             put_datatable(df.applymap(str).to_dict(orient='records'))
 
-    def add_minimal_test():
-        clear_all_tables(get_engine())
-
-        teams = []
-        patients = []
-        surgeries = []
-        surgery_possible_teams = []
-        rooms = []
-
-        TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
-
-        with Session(get_engine()) as session:
-            session.add_all(teams)
-            session.add_all(patients)
-            session.add_all(surgeries)
-            session.add_all(surgery_possible_teams)
-            session.add_all(rooms)
-            session.commit()
-
-        run_js('window.location.reload()')
-
-    def add_fixed_schedules_test():
-        clear_all_tables(get_engine())
-
-        teams = []
-        patients = []
-        surgeries = []
-        surgery_possible_teams = []
-        rooms = []
-
-        TestFixedSchedulesExecute.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
-
-        with Session(get_engine()) as session:
-            session.add_all(teams)
-            session.add_all(patients)
-            session.add_all(surgeries)
-            session.add_all(surgery_possible_teams)
-            session.add_all(rooms)
-            session.commit()
-
-        run_js('window.location.reload()')
-
-    def add_limiteroom_test():
-        clear_all_tables(get_engine())
-
-        teams = []
-        patients = []
-        surgeries = []
-        surgery_possible_teams = []
-        rooms = []
-
-        TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
-
-        with Session(get_engine()) as session:
-            session.add_all(teams)
-            session.add_all(patients)
-            session.add_all(surgeries)
-            session.add_all(surgery_possible_teams)
-            session.add_all(rooms)
-            session.commit()
-
-        run_js('window.location.reload()')
-
     def view_select_features():
         print(FeaturesAlg.selecteds)
         selecteds = select('`CTRL`+CLICK para selecionar múltiplas Features', options=FeaturesAlg.get_options(),
@@ -385,7 +404,7 @@ def index():
         FeaturesAlg.selecteds = selecteds
 
     def select_fake_data():
-        select('Testes', options=['Teste de Algoritmo Mínimo', 'Teste de Pré-agendamentos', 'Teste de Restrição de Salas'])
+        select('Testes', options=FeaturesAlg.get_fake_data_options(), onchange=FeaturesAlg.apply_fake_data)
 
     put_grid([
         [

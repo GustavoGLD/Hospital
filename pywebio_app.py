@@ -2,9 +2,11 @@
 #1) define function: generate_datatable(). Make sure it returns your table as a 2d array (as shown in line 86-96).
 #2) customize function edit_table() and delete_table().
 #3) use line133 to instantiate a CRUDTable object, and use CRUDTable.put_crud_table() method to output it to your web app as in line 134.
+import contextlib
 import json
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TypeVar, Type, Generic, Any
 
 import pandas as pd
@@ -12,6 +14,13 @@ from loguru import logger
 from sqlalchemy import text, inspect
 from sqlmodel import SQLModel
 from app.models import Surgery, Patient, Team, Room, Schedule
+from app.services.cache.cache_in_dict import CacheInDict
+from app.services.logic.schedule_builders.algorithm import Algorithm
+from app.services.logic.schedule_builders.features.fixed_schedules import FixedSchedules
+from app.services.logic.schedule_builders.features.room_limiter import RoomLimiter
+from app.services.logic.schedule_builders.functions.apply_features import apply_features
+from app.services.logic.schedule_optimizers.optimizer import Optimizer
+from app.services.logic.schedule_optimizers.solver import Solver
 from main import main, get_engine
 from pywebio_app import *
 from pywebio.output import *
@@ -20,14 +29,118 @@ from pywebio.session import *
 from pywebio import start_server
 from functools import partial
 
+from tests import TestAlgorithmExecuteWithMoreData, TestFixedSchedulesExecute, TestRoomLimiter
+from sqlmodel import select as slc
+
+
+def add_minimal_test():
+    clear_all_tables(get_engine())
+
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+
+    TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+def add_fixed_schedules_test():
+    clear_all_tables(get_engine())
+
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+    schedules = []
+
+    TestFixedSchedulesExecute.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms, schedules)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.add_all(schedules)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+def add_limiteroom_test():
+    clear_all_tables(get_engine())
+
+    teams = []
+    patients = []
+    surgeries = []
+    surgery_possible_teams = []
+    rooms = []
+
+    TestAlgorithmExecuteWithMoreData.setting_up(teams, patients, surgeries, surgery_possible_teams, rooms)
+
+    with Session(get_engine()) as session:
+        session.add_all(teams)
+        session.add_all(patients)
+        session.add_all(surgeries)
+        session.add_all(surgery_possible_teams)
+        session.add_all(rooms)
+        session.commit()
+
+    run_js('window.location.reload()')
+
+
+class FeaturesAlg:
+
+    selecteds = []
+    feature = {
+        "Restringir salas": RoomLimiter,
+        "Pré-agendamentos": FixedSchedules
+    }
+
+    fake_data = {
+        "Teste Minimo": add_minimal_test,
+        #"Teste com salas limitadas": add_limiteroom_test,
+        "Teste com agendamentos fixos": add_fixed_schedules_test
+    }
+
+    @staticmethod
+    def get_options() -> list[dict[str, str]]:
+        return [{"label": key, "value": key} for i, key in enumerate(FeaturesAlg.feature.keys())]
+
+    @staticmethod
+    def get_features() -> list:
+        return [FeaturesAlg.feature[key] for key in FeaturesAlg.selecteds]
+
+    @staticmethod
+    def get_fake_data_options() -> list[dict]:
+        return [{"label": key, "value": key} for key in FeaturesAlg.fake_data.keys()]
+
+    @staticmethod
+    def apply_fake_data(selected: str) -> None:
+        FeaturesAlg.fake_data[selected]()
+
 
 class CRUDTable:
     def __init__(self, forms: "MyPywebioForms"):
         self.forms = forms
         self.model = forms.model
-        self.datatable = self.gen_data_func()
+        self.datatable: list
 
     def put_crud_table(self):
+        self.datatable = self.gen_data_func()
+
         """Exibe a tabela CRUD atualizada na interface do PyWebIO."""
         table = []
 
@@ -82,7 +195,9 @@ class CRUDTable:
     def gen_data_func(self):
         """Busca os dados do banco de dados e os retorna como dicionários."""
         with Session(get_engine()) as session:
-            return [record.model_dump() for record in session.query(self.model).all()]
+            r = [record.model_dump() for record in session.exec(slc(self.model)).all()]
+            print(f'{r=}')
+            return r
 
     def get_primary_key(self):
         """Retorna o nome da chave primária do modelo."""
@@ -238,8 +353,15 @@ class ScheduleForms(MyPywebioForms[Schedule]):
 from sqlmodel import SQLModel, Session, create_engine
 
 
+def clear_all_tables(engine):
+    with contextlib.closing(engine.connect()) as con:
+        trans = con.begin()
+        for table in reversed(SQLModel.metadata.sorted_tables):
+            con.execute(table.delete())
+        trans.commit()
+
+
 def index():
-    #put_text('Bem-vindo ao sistema de agendamento de cirurgias!')
     put_markdown('# Agendamento de Cirurgias - SISCOF')
     put_success('Bem-vindo ao sistema de agendamento de cirurgias!')
     put_text('Selecione uma tabela para configurar as dados:')
@@ -258,15 +380,39 @@ def index():
         with use_scope("teste", clear=True):
             put_warning("Executando...")
 
-        alg = main()
+        with Session(get_engine()) as session:
+            cache = CacheInDict(session=session)
+            cache.load_all_data(session)
+
+        algorithm_base = apply_features(Algorithm, *FeaturesAlg.get_features())
+        optimizer = Optimizer(cache=cache, algorithm_base=algorithm_base)
+        solution = optimizer.run()
+
+        algorithm = Algorithm(optimizer.solver.mobile_surgeries, cache, datetime.now())
+        algorithm.execute(solution)
 
         with use_scope("teste", clear=True):
             put_success("Concluído!")
             put_text("Resultado:")
-            df = pd.DataFrame(alg.rooms_according_to_time)
+            df = pd.DataFrame(algorithm.rooms_according_to_time)
             put_datatable(df.applymap(str).to_dict(orient='records'))
 
-    put_button('Executar algoritmo de agendamento', onclick=execute_algorithm)
+    def view_select_features():
+        print(FeaturesAlg.selecteds)
+        selecteds = select('`CTRL`+CLICK para selecionar múltiplas Features', options=FeaturesAlg.get_options(),
+                           value=FeaturesAlg.selecteds, multiple=True)
+        FeaturesAlg.selecteds = selecteds
+
+    def select_fake_data():
+        select('Testes', options=FeaturesAlg.get_fake_data_options(), onchange=FeaturesAlg.apply_fake_data)
+
+    put_grid([
+        [
+            put_button('Selecionar features', onclick=view_select_features),
+            put_button('Utilizar Dados Falsos', onclick=select_fake_data),
+            put_button('Executar algoritmo de agendamento', onclick=execute_algorithm),
+        ]
+    ])
 
 
 tasks = {
